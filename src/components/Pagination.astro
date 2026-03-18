@@ -1,0 +1,33 @@
+---
+import { labels } from "../data/site";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  currentPage: number;
+  totalPages: number;
+  basePath: string;
+}
+
+const { locale, currentPage, totalPages, basePath } = Astro.props as Props;
+const copy = labels[locale];
+
+const makeHref = (page: number) => (page <= 1 ? `${basePath}/` : `${basePath}/page/${page}/`);
+const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+---
+
+{totalPages > 1 ? (
+  <nav class="pagination" aria-label={copy.pageLabel}>
+    <a class:list={["chip", currentPage === 1 && "chip-disabled"]} href={currentPage > 1 ? makeHref(currentPage - 1) : undefined}>
+      {copy.previous}
+    </a>
+    {pages.map((page) => (
+      <a class:list={["chip", page === currentPage && "chip-active"]} href={makeHref(page)} aria-current={page === currentPage ? "page" : undefined}>
+        {page}
+      </a>
+    ))}
+    <a class:list={["chip", currentPage === totalPages && "chip-disabled"]} href={currentPage < totalPages ? makeHref(currentPage + 1) : undefined}>
+      {copy.next}
+    </a>
+  </nav>
+) : null}

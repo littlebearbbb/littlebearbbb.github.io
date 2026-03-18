@@ -1,0 +1,32 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { categoryLabels } from "../../../data/categories";
+import { getCategoryCounts, getLogs } from "../../../lib/content";
+
+const locale = "en";
+const categories = await getCategoryCounts(locale);
+const posts = await getLogs(locale);
+---
+
+<BaseLayout locale={locale} title="Categories">
+  <section class="panel">
+    <h1>Categories</h1>
+    <div class="post-list">
+      {categories.map((category) => (
+        <section class="post-card" id={category.slug}>
+          <h2>{categoryLabels[category.slug as keyof typeof categoryLabels][locale]}</h2>
+          <p>{category.count} entries</p>
+          <ul class="clean">
+            {posts
+              .filter((post) => post.data.category === category.slug)
+              .map((post) => (
+                <li>
+                  <a href={`/en/logs/${post.slug}/`}>{post.data.title}</a>
+                </li>
+              ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  </section>
+</BaseLayout>

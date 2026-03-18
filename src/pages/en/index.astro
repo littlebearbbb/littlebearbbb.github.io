@@ -1,0 +1,35 @@
+---
+import CategoryGrid from "../../components/CategoryGrid.astro";
+import Hero from "../../components/Hero.astro";
+import PostList from "../../components/PostList.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getCategoryCounts, getLogs, getPage, getProjects } from "../../lib/content";
+import { labels } from "../../data/site";
+
+const locale = "en";
+const posts = (await getLogs(locale)).slice(0, 6);
+const categories = await getCategoryCounts(locale);
+const projects = await getProjects(locale);
+const now = await getPage(locale, "now");
+const copy = labels[locale];
+---
+
+<BaseLayout locale={locale}>
+  <Hero locale={locale} />
+  <section class="grid" style="margin-top: 22px;">
+    <section class="panel">
+      <h2>{copy.latest}</h2>
+      <PostList locale={locale} posts={posts} />
+    </section>
+    <aside class="panel">
+      <h2>{copy.categories}</h2>
+      <CategoryGrid locale={locale} categories={categories} />
+      <p style="margin-top: 18px;"><a href="/en/logs/">{copy.allLogs}</a></p>
+      <p><a href="/en/projects/">{copy.projects}</a></p>
+      <p><a href="/en/now/">{copy.now}</a></p>
+      {projects[0] ? <p>{copy.projects}: {projects[0].data.title}</p> : null}
+      {now ? <p>{copy.now}: {now.data.description}</p> : null}
+      <p><a href="/en/rss.xml">{copy.rss}</a></p>
+    </aside>
+  </section>
+</BaseLayout>

@@ -1,0 +1,23 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { site } from "../../../data/site";
+
+const locale = "en";
+---
+
+<BaseLayout locale={locale} title="About">
+  <section class="panel">
+    <h1>About</h1>
+    <article class="prose">
+      <p>{site.intro.en}</p>
+      <p>
+        I am from China and I enjoy programming, games, and discovering the world.
+        This site is my public logbook for projects, experiments, notes, ideas, and
+        things I notice along the way.
+      </p>
+      <p>
+        You can reach me at <a href="mailto:littlebearbbb@gmail.com">littlebearbbb@gmail.com</a>.
+      </p>
+    </article>
+  </section>
+</BaseLayout>

@@ -1,0 +1,15 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import TagCloud from "../../../components/TagCloud.astro";
+import { getTagCounts } from "../../../lib/content";
+
+const locale = "en";
+const tags = await getTagCounts(locale);
+---
+
+<BaseLayout locale={locale} title="Tags">
+  <section class="panel">
+    <h1>Tags</h1>
+    <TagCloud locale={locale} tags={tags} />
+  </section>
+</BaseLayout>

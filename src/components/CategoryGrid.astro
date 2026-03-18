@@ -1,0 +1,19 @@
+---
+import { categoryLabels } from "../data/categories";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  categories: { slug: string; count: number }[];
+}
+
+const { locale, categories } = Astro.props as Props;
+---
+
+<div class="tag-row">
+  {categories.map((item) => (
+    <a class="chip" href={`/${locale}/categories/#${item.slug}`}>
+      {categoryLabels[item.slug as keyof typeof categoryLabels][locale]} ({item.count})
+    </a>
+  ))}
+</div>

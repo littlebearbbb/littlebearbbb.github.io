@@ -1,0 +1,18 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import Pagination from "../../../components/Pagination.astro";
+import PostList from "../../../components/PostList.astro";
+import { LOGS_PAGE_SIZE, getLogs, paginateEntries } from "../../../lib/content";
+
+const locale = "zh";
+const allPosts = await getLogs(locale);
+const page = paginateEntries(allPosts, 1, LOGS_PAGE_SIZE);
+---
+
+<BaseLayout locale={locale} title="日志">
+  <section class="panel">
+    <h1>日志</h1>
+    <PostList locale={locale} posts={page.items} />
+    <Pagination locale={locale} currentPage={page.page} totalPages={page.totalPages} basePath="/zh/logs" />
+  </section>
+</BaseLayout>

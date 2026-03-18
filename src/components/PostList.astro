@@ -1,0 +1,45 @@
+---
+import { categoryLabels } from "../data/categories";
+import { labels } from "../data/site";
+import CoverPanel from "./CoverPanel.astro";
+import type { CollectionEntry } from "astro:content";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  posts: CollectionEntry<"logs">[];
+}
+
+const { locale, posts } = Astro.props as Props;
+const copy = labels[locale];
+---
+
+{posts.length ? (
+  <div class="post-list">
+    {posts.map((post) => (
+      <a class="post-card" href={`/${locale}/logs/${post.data.translationKey}/`}>
+        <CoverPanel
+          locale={locale}
+          title={post.data.title}
+          eyebrow={post.data.cover?.eyebrow}
+          src={post.data.cover?.src}
+          alt={post.data.cover?.alt}
+          compact={true}
+        />
+        <div class="meta-strip">
+          <span>{post.data.date.toISOString().slice(0, 10)}</span>
+          <span>{categoryLabels[post.data.category][locale]}</span>
+        </div>
+        <h3>{post.data.title}</h3>
+        <p>{post.data.description}</p>
+        <div class="tag-row">
+          {post.data.tags.map((tag) => (
+            <span class="chip">#{tag}</span>
+          ))}
+        </div>
+      </a>
+    ))}
+  </div>
+) : (
+  <p>{copy.noPosts}</p>
+)}

@@ -1,0 +1,36 @@
+---
+import type { CollectionEntry } from "astro:content";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  projects: CollectionEntry<"projects">[];
+}
+
+const { locale, projects } = Astro.props as Props;
+---
+
+<div class="post-list">
+  {projects.map((project) => (
+    <article class="post-card">
+      <div class="meta-strip">
+        <span>{project.data.status}</span>
+        <span>{project.data.featured ? "featured" : "listed"}</span>
+      </div>
+      <h3>{project.data.title}</h3>
+      <p>{project.data.description}</p>
+      <div class="tag-row">
+        {project.data.stack.map((item) => (
+          <span class="chip">{item}</span>
+        ))}
+      </div>
+      {project.data.links.length ? (
+        <p style="margin-top: 14px;">
+          {project.data.links.map((link) => (
+            <a class="chip" href={link.href} target="_blank" rel="noreferrer">{link.label}</a>
+          ))}
+        </p>
+      ) : null}
+    </article>
+  ))}
+</div>

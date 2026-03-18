@@ -1,0 +1,27 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import Pagination from "../../../../components/Pagination.astro";
+import PostList from "../../../../components/PostList.astro";
+import { LOGS_PAGE_SIZE, getLogs, paginateEntries } from "../../../../lib/content";
+
+export async function getStaticPaths() {
+  const posts = await getLogs("zh");
+  const totalPages = Math.ceil(posts.length / LOGS_PAGE_SIZE);
+  return Array.from({ length: Math.max(totalPages - 1, 0) }, (_, index) => ({
+    params: { page: String(index + 2) }
+  }));
+}
+
+const locale = "zh";
+const currentPage = Number(Astro.params.page ?? "1");
+const allPosts = await getLogs(locale);
+const page = paginateEntries(allPosts, currentPage, LOGS_PAGE_SIZE);
+---
+
+<BaseLayout locale={locale} title={`日志 / 第 ${page.page} 页`}>
+  <section class="panel">
+    <h1>日志</h1>
+    <PostList locale={locale} posts={page.items} />
+    <Pagination locale={locale} currentPage={page.page} totalPages={page.totalPages} basePath="/zh/logs" />
+  </section>
+</BaseLayout>

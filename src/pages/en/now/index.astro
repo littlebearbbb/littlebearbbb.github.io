@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { getPage } from "../../../lib/content";
+
+const locale = "en";
+const page = await getPage(locale, "now");
+
+if (!page) {
+  throw new Error("Missing en now page");
+}
+
+const { Content } = await page.render();
+---
+
+<BaseLayout locale={locale} title={page.data.title} description={page.data.description}>
+  <section class="panel prose">
+    <h1>{page.data.title}</h1>
+    <p>{page.data.description}</p>
+    <Content />
+  </section>
+</BaseLayout>

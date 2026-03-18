@@ -1,0 +1,24 @@
+---
+import { labels } from "../data/site";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  tags: { slug: string; tag: string; count: number }[];
+}
+
+const { locale, tags } = Astro.props as Props;
+const copy = labels[locale];
+---
+
+{tags.length ? (
+  <div class="tag-row">
+    {tags.map((item) => (
+      <a class="chip" href={`/${locale}/tags/${item.slug}/`}>
+        #{item.tag} ({item.count})
+      </a>
+    ))}
+  </div>
+) : (
+  <p>{copy.noPosts}</p>
+)}

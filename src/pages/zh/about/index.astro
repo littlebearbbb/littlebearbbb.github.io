@@ -1,0 +1,22 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { site } from "../../../data/site";
+
+const locale = "zh";
+---
+
+<BaseLayout locale={locale} title="关于">
+  <section class="panel">
+    <h1>关于我</h1>
+    <article class="prose">
+      <p>{site.intro.zh}</p>
+      <p>
+        我来自中国，喜欢编程、游戏，以及对世界保持探索欲。这个站点会作为我的公开日志，
+        用来记录项目、折腾、笔记、想法和路上的一些发现。
+      </p>
+      <p>
+        你可以通过 <a href="mailto:littlebearbbb@gmail.com">littlebearbbb@gmail.com</a> 找到我。
+      </p>
+    </article>
+  </section>
+</BaseLayout>

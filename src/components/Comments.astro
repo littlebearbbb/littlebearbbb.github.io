@@ -1,0 +1,24 @@
+---
+import { labels, site } from "../data/site";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  term?: string;
+}
+
+const { locale, term } = Astro.props;
+const copy = labels[locale];
+---
+
+<section class="panel">
+  <h2>{copy.commentTitle}</h2>
+  <script
+    src="https://utteranc.es/client.js"
+    repo={site.repo}
+    issue-term={term ?? "pathname"}
+    theme="github-dark"
+    crossorigin="anonymous"
+    async
+  ></script>
+</section>

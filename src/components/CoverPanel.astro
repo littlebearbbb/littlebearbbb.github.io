@@ -1,0 +1,30 @@
+---
+import { labels } from "../data/site";
+import type { Locale } from "../types";
+
+interface Props {
+  locale: Locale;
+  title: string;
+  eyebrow?: string;
+  src?: string;
+  alt?: string;
+  compact?: boolean;
+}
+
+const { locale, title, eyebrow, src, alt, compact = false } = Astro.props as Props;
+const copy = labels[locale];
+---
+
+<div class:list={["cover-panel", compact && "cover-panel-compact"]}>
+  {src ? (
+    <img src={src} alt={alt ?? title} loading="lazy" />
+  ) : (
+    <div class="cover-fallback" aria-label={alt ?? copy.coverLabel}>
+      <div class="cover-grid"></div>
+      <div class="cover-copy">
+        <div class="mono">{eyebrow ?? "entry.cover"}</div>
+        <strong>{title}</strong>
+      </div>
+    </div>
+  )}
+</div>

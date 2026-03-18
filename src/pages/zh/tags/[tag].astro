@@ -1,0 +1,28 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import PostList from "../../../components/PostList.astro";
+import { getLogsByTag, getTagCounts } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const tags = await getTagCounts("zh");
+  return tags.map((tag) => ({ params: { tag: tag.slug } }));
+}
+
+const locale = "zh";
+const slug = Astro.params.tag!;
+const tags = await getTagCounts(locale);
+const currentTag = tags.find((item) => item.slug === slug);
+const posts = await getLogsByTag(locale, slug);
+
+if (!currentTag) {
+  throw new Error(`Missing tag: ${slug}`);
+}
+---
+
+<BaseLayout locale={locale} title={`标签 / ${currentTag.tag}`}>
+  <section class="panel">
+    <h1>#{currentTag.tag}</h1>
+    <p>{currentTag.count} 篇内容</p>
+    <PostList locale={locale} posts={posts} />
+  </section>
+</BaseLayout>

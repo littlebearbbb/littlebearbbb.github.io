@@ -1,0 +1,15 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import ProjectList from "../../../components/ProjectList.astro";
+import { getProjects } from "../../../lib/content";
+
+const locale = "zh";
+const projects = await getProjects(locale);
+---
+
+<BaseLayout locale={locale} title="项目">
+  <section class="panel">
+    <h1>项目</h1>
+    <ProjectList locale={locale} projects={projects} />
+  </section>
+</BaseLayout>

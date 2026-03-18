@@ -1,0 +1,20 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#081117"/>
+  <rect x="34" y="34" width="1132" height="562" rx="22" fill="#0B171F" stroke="#79FFA833"/>
+  <path d="M80 136H1120" stroke="#79FFA822" stroke-width="2"/>
+  <path d="M80 230H1120" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M80 324H1120" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M80 418H1120" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M80 512H1120" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M240 80V550" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M440 80V550" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M640 80V550" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M840 80V550" stroke="#79FFA814" stroke-width="2"/>
+  <path d="M1040 80V550" stroke="#79FFA814" stroke-width="2"/>
+  <circle cx="117" cy="117" r="12" fill="#FF7B72"/>
+  <circle cx="151" cy="117" r="12" fill="#F2CC60"/>
+  <circle cx="185" cy="117" r="12" fill="#7EE787"/>
+  <text x="98" y="214" fill="#79FFA8" font-family="monospace" font-size="30">system.boot</text>
+  <text x="98" y="310" fill="#D7E4DE" font-family="monospace" font-size="68">hello-lab</text>
+  <text x="98" y="378" fill="#94AAA0" font-family="monospace" font-size="28">logs / notes / build journal</text>
+</svg>

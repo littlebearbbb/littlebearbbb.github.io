@@ -1,0 +1,32 @@
+---
+import { labels, site } from "../data/site";
+import type { Locale } from "../types";
+
+const { locale } = Astro.props as { locale: Locale };
+const copy = labels[locale];
+---
+
+<section class="grid">
+  <div class="panel">
+    <div class="hero-kicker">{copy.heroKicker}</div>
+    <h1>{copy.heroTitle}</h1>
+    <p>{site.intro[locale]}</p>
+    <p>{copy.heroBody}</p>
+    <div class="tag-row">
+      <span class="tag">coding</span>
+      <span class="tag">games</span>
+      <span class="tag">world discovery</span>
+      <a class="tag" href={`/${locale}/rss.xml`}>{copy.rss}</a>
+    </div>
+  </div>
+  <aside class="panel">
+    <h2>profile.json</h2>
+    <ul class="clean">
+      <li><code>"origin"</code>: "China"</li>
+      <li><code>"focus"</code>: ["coding", "games", "world"]</li>
+      <li><code>"status"</code>: "building in public"</li>
+      <li><code>"mail"</code>: "{site.email}"</li>
+      <li><code>"languages"</code>: ["zh", "en"]</li>
+    </ul>
+  </aside>
+</section>

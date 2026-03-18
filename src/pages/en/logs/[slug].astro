@@ -1,0 +1,43 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import Comments from "../../../components/Comments.astro";
+import CoverPanel from "../../../components/CoverPanel.astro";
+import { categoryLabels } from "../../../data/categories";
+import { getLogs } from "../../../lib/content";
+
+export async function getStaticPaths() {
+  const posts = await getLogs("en");
+  return posts.map((post) => ({ params: { slug: post.data.translationKey } }));
+}
+
+const locale = "en";
+const posts = await getLogs(locale);
+const post = posts.find((entry) => entry.data.translationKey === Astro.params.slug);
+
+if (!post) {
+  throw new Error(`Missing post for slug: ${Astro.params.slug}`);
+}
+
+const { Content } = await post.render();
+---
+
+<BaseLayout locale={locale} title={post.data.title} description={post.data.description} alternateHref={`/zh/logs/${post.data.translationKey}/`}>
+  <article class="panel prose">
+    <CoverPanel locale={locale} title={post.data.title} eyebrow={post.data.cover?.eyebrow} src={post.data.cover?.src} alt={post.data.cover?.alt} />
+    <div class="meta-strip">
+      <span>{post.data.date.toISOString().slice(0, 10)}</span>
+      <span>{categoryLabels[post.data.category][locale]}</span>
+    </div>
+    <h1>{post.data.title}</h1>
+    <p>{post.data.description}</p>
+    <div class="tag-row" style="margin-bottom: 18px;">
+      {post.data.tags.map((tag) => (
+        <a class="chip" href={`/en/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}/`}>#{tag}</a>
+      ))}
+    </div>
+    <Content />
+  </article>
+  <div style="margin-top: 22px;">
+    <Comments locale={locale} term={post.data.translationKey} />
+  </div>
+</BaseLayout>
