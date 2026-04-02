@@ -17,8 +17,8 @@ const alternateLocale = locale === "zh" ? "en" : "zh";
 const currentPath = Astro.url.pathname;
 const fallbackAlternatePath = currentPath.replace(`/${locale}/`, `/${alternateLocale}/`);
 const languageSwitchHref = alternateHref ?? fallbackAlternatePath;
-const currentLangLabel = locale.toUpperCase();
-const alternateLangLabel = alternateLocale.toUpperCase();
+const zhSwitchHref = locale === "zh" ? undefined : currentPath.replace(`/${locale}/`, "/zh/");
+const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${locale}/`, "/en/");
 ---
 
 <!doctype html>
@@ -96,39 +96,69 @@ const alternateLangLabel = alternateLocale.toUpperCase();
       nav a { color: var(--text-dim); display: inline-flex; align-items: center; min-height: 34px; line-height: 1; }
       nav a:hover, nav a[aria-current="page"] { color: var(--accent); }
       .lang-switcher {
-        display: inline-flex;
+        --switch-pad: 4px;
+        position: relative;
+        display: inline-grid;
+        grid-template-columns: repeat(2, minmax(84px, 1fr));
         align-items: center;
-        border: 1px solid rgba(121, 255, 168, 0.42);
+        border: 1px solid rgba(121, 255, 168, 0.34);
         border-radius: 999px;
-        background: linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(184, 255, 109, 0.08));
-        overflow: hidden;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+        background:
+          linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(184, 255, 109, 0.08)),
+          rgba(9, 16, 21, 0.72);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+          0 8px 24px rgba(0, 0, 0, 0.16);
         flex: 0 0 auto;
         margin-left: auto;
+        padding: var(--switch-pad);
+        isolation: isolate;
+      }
+      .lang-switcher::before {
+        content: "";
+        position: absolute;
+        top: var(--switch-pad);
+        bottom: var(--switch-pad);
+        left: var(--switch-pad);
+        width: calc((100% - (var(--switch-pad) * 2)) / 2);
+        border-radius: 999px;
+        background:
+          linear-gradient(180deg, rgba(17, 30, 37, 0.96), rgba(8, 14, 18, 0.88));
+        border: 1px solid rgba(121, 255, 168, 0.2);
+        box-shadow:
+          0 12px 20px rgba(0, 0, 0, 0.24),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        transform: translateX(0);
+        transition: transform 220ms ease;
+        z-index: 0;
+      }
+      .lang-switcher[data-locale="en"]::before {
+        transform: translateX(100%);
       }
       .lang-segment {
+        position: relative;
+        z-index: 1;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 52px;
-        min-height: 38px;
-        padding: 0 14px;
+        min-width: 84px;
+        min-height: 40px;
+        padding: 0 16px;
+        border-radius: 999px;
         color: var(--text-dim);
         line-height: 1;
-      }
-      .lang-segment + .lang-segment {
-        border-left: 1px solid rgba(121, 255, 168, 0.24);
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
       }
       .lang-segment-active {
-        background: rgba(9, 16, 21, 0.55);
         color: var(--text);
         font-weight: 600;
       }
       .lang-segment-link {
-        color: var(--accent);
+        color: rgba(121, 255, 168, 0.86);
+        transition: color 180ms ease;
       }
       .lang-segment-link:hover {
-        background: rgba(121, 255, 168, 0.1);
         color: var(--accent-strong);
       }
       .content { padding: 12px 22px 26px; }
@@ -150,6 +180,88 @@ const alternateLangLabel = alternateLocale.toUpperCase();
       .pagination { margin-top: 18px; }
       article.prose { max-width: 75ch; }
       article.prose p + p { margin-top: 1rem; }
+      article.log-entry {
+        max-width: min(110ch, 100%);
+        width: 100%;
+      }
+      article.log-entry h1 {
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.18;
+        max-width: none;
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+      }
+      article.log-entry > p {
+        max-width: 84ch;
+        font-size: 1.02rem;
+      }
+      article.log-entry :where(h2, h3, h4) {
+        max-width: none;
+      }
+      .log-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.72fr);
+        gap: 22px;
+        align-items: start;
+      }
+      .log-sidebar {
+        display: grid;
+        gap: 16px;
+        position: sticky;
+        top: 24px;
+      }
+      .sidebar-panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 18px;
+      }
+      .sidebar-panel h2 {
+        font-size: 1rem;
+        line-height: 1.25;
+        margin-bottom: 14px;
+      }
+      .related-list {
+        display: grid;
+        gap: 12px;
+      }
+      .related-link {
+        display: grid;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(121, 255, 168, 0.12);
+      }
+      .related-link:first-child {
+        padding-top: 0;
+        border-top: 0;
+      }
+      .related-link strong {
+        color: var(--text);
+        font-size: 0.98rem;
+        line-height: 1.38;
+      }
+      .related-link:hover strong {
+        color: var(--accent);
+      }
+      .sidebar-meta {
+        display: grid;
+        gap: 12px;
+      }
+      .sidebar-meta-item {
+        display: grid;
+        gap: 6px;
+      }
+      .sidebar-meta-label {
+        color: var(--text-dim);
+        font-size: 0.76rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .sidebar-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
       .cover-panel { margin-bottom: 14px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(9, 16, 21, 0.4)); min-height: 220px; position: relative; }
       .cover-panel-compact { min-height: 150px; }
       .cover-panel img, .cover-fallback { display: block; width: 100%; height: 100%; min-height: inherit; object-fit: cover; }
@@ -158,6 +270,14 @@ const alternateLangLabel = alternateLocale.toUpperCase();
       .cover-copy { position: relative; z-index: 1; display: grid; gap: 8px; align-content: end; min-height: inherit; }
       .cover-copy strong { font-size: clamp(1.4rem, 3vw, 2.2rem); max-width: 14ch; }
       footer.site-footer { padding: 0 22px 22px; color: var(--text-dim); }
+      @media (max-width: 980px) {
+        .log-layout {
+          grid-template-columns: 1fr;
+        }
+        .log-sidebar {
+          position: static;
+        }
+      }
       @media (max-width: 640px) {
         .header-row { align-items: flex-start; flex-direction: column; }
         .lang-switcher { margin-left: 0; }
@@ -179,9 +299,17 @@ const alternateLangLabel = alternateLocale.toUpperCase();
                 <a href={item.href} aria-current={Astro.url.pathname === item.href ? "page" : undefined}>{item.label}</a>
               ))}
             </nav>
-            <div class="lang-switcher" aria-label="Language switcher">
-              <span class="lang-segment lang-segment-active" aria-current="true">{currentLangLabel}</span>
-              <a class="lang-segment lang-segment-link" href={languageSwitchHref}>{alternateLangLabel}</a>
+            <div class="lang-switcher" data-locale={locale} aria-label="Language switcher">
+              {locale === "zh" ? (
+                <span class="lang-segment lang-segment-active" aria-current="true">中文</span>
+              ) : (
+                <a class="lang-segment lang-segment-link" href={zhSwitchHref}>中文</a>
+              )}
+              {locale === "en" ? (
+                <span class="lang-segment lang-segment-active" aria-current="true">English</span>
+              ) : (
+                <a class="lang-segment lang-segment-link" href={enSwitchHref}>English</a>
+              )}
             </div>
           </div>
         </header>

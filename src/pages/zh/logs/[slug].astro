@@ -3,6 +3,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
 import Comments from "../../../components/Comments.astro";
 import CoverPanel from "../../../components/CoverPanel.astro";
 import { categoryLabels } from "../../../data/categories";
+import { labels } from "../../../data/site";
 import { getLogs } from "../../../lib/content";
 
 export async function getStaticPaths() {
@@ -13,30 +14,85 @@ export async function getStaticPaths() {
 const locale = "zh";
 const posts = await getLogs(locale);
 const post = posts.find((entry) => entry.data.translationKey === Astro.params.slug);
+const copy = labels[locale];
 
 if (!post) {
   throw new Error(`Missing post for slug: ${Astro.params.slug}`);
 }
 
+const relatedPosts = posts
+  .filter((entry) => entry.id !== post.id)
+  .map((entry) => ({
+    entry,
+    score: entry.data.tags.filter((tag) => post.data.tags.includes(tag)).length
+  }))
+  .filter(({ score }) => score > 0)
+  .sort((a, b) => b.score - a.score || b.entry.data.date.getTime() - a.entry.data.date.getTime())
+  .slice(0, 3)
+  .map(({ entry }) => entry);
+
 const { Content } = await post.render();
 ---
 
 <BaseLayout locale={locale} title={post.data.title} description={post.data.description} alternateHref={`/en/logs/${post.data.translationKey}/`}>
-  <article class="panel prose">
-    <CoverPanel locale={locale} title={post.data.title} eyebrow={post.data.cover?.eyebrow} src={post.data.cover?.src} alt={post.data.cover?.alt} />
-    <div class="meta-strip">
-      <span>{post.data.date.toISOString().slice(0, 10)}</span>
-      <span>{categoryLabels[post.data.category][locale]}</span>
-    </div>
-    <h1>{post.data.title}</h1>
-    <p>{post.data.description}</p>
-    <div class="tag-row" style="margin-bottom: 18px;">
-      {post.data.tags.map((tag) => (
-        <a class="chip" href={`/zh/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}/`}>#{tag}</a>
-      ))}
-    </div>
-    <Content />
-  </article>
+  <div class="log-layout">
+    <article class="panel prose log-entry">
+      <CoverPanel locale={locale} title={post.data.title} eyebrow={post.data.cover?.eyebrow} src={post.data.cover?.src} alt={post.data.cover?.alt} />
+      <div class="meta-strip">
+        <span>{post.data.date.toISOString().slice(0, 10)}</span>
+        <span>{categoryLabels[post.data.category][locale]}</span>
+      </div>
+      <h1>{post.data.title}</h1>
+      <p>{post.data.description}</p>
+      <div class="tag-row" style="margin-bottom: 18px;">
+        {post.data.tags.map((tag) => (
+          <a class="chip" href={`/zh/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}/`}>#{tag}</a>
+        ))}
+      </div>
+      <Content />
+    </article>
+    <aside class="log-sidebar">
+      <section class="sidebar-panel">
+        <h2>{copy.relatedPosts}</h2>
+        {relatedPosts.length ? (
+          <div class="related-list">
+            {relatedPosts.map((entry) => (
+              <a class="related-link" href={`/zh/logs/${entry.data.translationKey}/`}>
+                <strong>{entry.data.title}</strong>
+                <span class="meta-strip">
+                  <span>{entry.data.date.toISOString().slice(0, 10)}</span>
+                  <span>{categoryLabels[entry.data.category][locale]}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p>{copy.relatedPlaceholder}</p>
+        )}
+      </section>
+      <section class="sidebar-panel">
+        <h2>{copy.articleInfo}</h2>
+        <div class="sidebar-meta">
+          <div class="sidebar-meta-item">
+            <span class="sidebar-meta-label">{copy.publishedAt}</span>
+            <span>{post.data.date.toISOString().slice(0, 10)}</span>
+          </div>
+          <div class="sidebar-meta-item">
+            <span class="sidebar-meta-label">{copy.inCategory}</span>
+            <span>{categoryLabels[post.data.category][locale]}</span>
+          </div>
+          <div class="sidebar-meta-item">
+            <span class="sidebar-meta-label">{copy.readingTags}</span>
+            <div class="sidebar-chip-row">
+              {post.data.tags.map((tag) => (
+                <a class="chip" href={`/zh/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}/`}>#{tag}</a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
   <div style="margin-top: 22px;">
     <Comments locale={locale} term={post.data.translationKey} />
   </div>

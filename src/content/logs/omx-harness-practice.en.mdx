@@ -1,0 +1,168 @@
+---
+title: Practicing Harness with OMX for Long-Running Development
+description: A practical workflow for Specification, Planning, Execution, and Verification based on Anthropic's harness idea and OMX.
+translationKey: omx-harness-practice
+date: 2026-04-02
+locale: en
+category: coding
+tags:
+  - omx
+  - harness
+  - claude
+  - codex
+  - ai engineering
+cover:
+  src: /covers/omx-harness-horse.jpg
+  alt: Horse with a bridle
+  eyebrow: ai.harness
+draft: false
+---
+
+Anthropic makes a strong point in [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps): for long-running software tasks, progress does not come only from stronger models. It also comes from better harness design. The word `harness` itself is useful here. In its original sense, it refers to a set of straps, fittings, and control points that connect capability to directed use. In software terms, the important question is not only what the model can do, but how that capability is placed inside a system that is controllable, repeatable, and verifiable. Without that layer, even a strong model can drift, create rework, or stop in a state that looks complete but does not actually satisfy the acceptance criteria.
+
+After spending some time using `omx`, or `oh-my-codex`, my own conclusion is similar. The useful part is not handing code generation to the model in isolation. The useful part is turning requirements, architecture, planning, execution, and verification into a workflow that can be rerun without losing control.
+
+## Harness is mostly about process, not just model quality
+
+If you only give an AI a target such as "build this feature," it tends to mix together several different jobs: clarifying requirements, inventing acceptance criteria, changing architecture, implementing code, and deciding on its own whether the result is good enough. That can work on a tiny task, but it breaks down quickly once the work spans multiple files, modules, and verification steps.
+
+That is why the harness idea matters. Before the model starts coding, the framework around it should answer a few questions clearly:
+
+- What exactly are we adding?
+- What counts as done?
+- Where should the change live in the current codebase, and why?
+- How will each stage be verified?
+- If final verification fails, how do we turn the gap into the next round of work?
+
+In practice, this is just software engineering discipline reintroduced into AI-assisted development.
+
+## The workflow I practice with OMX
+
+### Specification / design
+
+I split the design stage into two separate concerns.
+
+The first is deciding what feature is being added and how it will be verified. This part works well when an experienced engineer collaborates with AI in a web UI such as Claude or ChatGPT. The reason is simple: at this stage, the work is mostly about boundaries, acceptance criteria, edge cases, and failure definitions. It usually does not need deep codebase context yet, so it is often cheaper to do it outside a code-focused CLI.
+
+The most important output here is not the feature description. It is the verification standard. The model needs to know exactly what must pass before the task is allowed to finish. In practice, that means writing down hard requirements such as:
+
+- all relevant unit tests must pass
+- new interfaces must cover both happy paths and failure paths
+- frontend changes must have browser-based automated verification
+- regression checks must confirm existing behavior still works
+
+In my experience, when verification is vague, the model ends the task too early. When verification is explicit, the model behaves much more like an executor.
+
+The second concern is deciding how the current project should implement the feature in the most reasonable way. This part depends on repository context, so I prefer to do it in `codex-cli`, `omx`, `cursor-cli`, or another code-aware client. My usual output is an `Architecture.md` file that captures at least three things:
+
+- feature boundaries and decomposition
+- the intended implementation path across modules, files, and data flow
+- the final verification requirements
+
+`Architecture.md` is not a mandatory standard. It is a working agreement between the engineer and the model. In traditional development terms, it is a lightweight combination of requirement breakdown and architecture design.
+
+### Planning
+
+Once `Architecture.md` exists, I ask the model to produce a `planning.md`. The goal is not just to make the task list look tidy. Each plan item should come with a small verification condition.
+
+For backend work, that might mean introducing a unit test first. For frontend work, it might mean an automated browser flow for a single slice of behavior. This is also why I strongly prefer asking AI to add unit tests whenever possible. The point is not test coverage as a vanity metric. The point is to create stable checkpoints for the execution stage.
+
+A good plan usually has a few properties:
+
+- each step is small enough to complete independently
+- each step has a concrete way to verify progress
+- dependencies are clear
+- once a step is done, it is easy to decide whether to continue or roll back
+
+You can connect this to CI/CD later, including automatic testing, build pipelines, and deployment. But I see that as a later extension of the harness, not the place to start.
+
+### Execution
+
+Execution is the least magical part. The model should implement one item from `planning.md` at a time instead of expanding freely inside the conversation.
+
+That sounds ordinary, but it solves two common long-task problems: the model quietly skipping steps, and the model drifting into an unplanned refactor of the whole codebase. Long-running work often fails not because the model is weak, but because it expands too early without enough constraints. A plan file fixes the question of what comes next.
+
+### Verification
+
+After implementation is done, I do not stop at green tests. I go back to `Architecture.md` and check whether every verification requirement defined in the design stage is actually satisfied.
+
+If something is still missing, I prefer turning that gap into a new subtask and re-entering the same loop. Once a long task reaches the "close enough" mindset, quality drops quickly.
+
+That is the most useful part of the harness idea for me: verification is not just a closing step. It is the entry point for the next round of decomposition.
+
+## How OMX fits into this workflow
+
+`omx` does not define the harness for you. What it does provide is a practical scaffold around multi-agent coordination, persistent state, long-running execution, and verification-oriented workflows.
+
+A typical install flow is:
+
+```bash
+npm install -g oh-my-codex
+omx setup
+omx doctor
+```
+
+From there, running `omx` launches Codex CLI with OMX's workflow layer attached.
+
+Two launch flags are worth calling out.
+
+- `--high` raises reasoning effort to high, which is useful for planning, architecture, and heavier execution tasks.
+- `--madmax` bypasses approvals and sandboxing. It is a high-risk mode and only makes sense when you understand the environment and the side effects of the commands being run.
+
+So `omx --madmax --high` effectively means higher reasoning effort with fewer execution constraints. That can be very productive, but it also increases operational risk.
+
+At the start of a project, if you want agent guidance files in place, the more precise OMX commands today are:
+
+```bash
+omx agents-init
+# or
+omx deepinit
+```
+
+These bootstrap lightweight `AGENTS.md` files in the target directory and its direct children. Many people are used to beginning in a client with `/init`, but in OMX's current command surface, `agents-init` and `deepinit` are the direct equivalents to talk about.
+
+For long-running work, the two OMX capabilities I use the most are `omx ralph` and `omx team`.
+
+`omx ralph` is a persistence-oriented mode for work that needs repeated execution and verification across time. It is not just about running longer. It is about keeping the task active and preserving progress in `.omx/`.
+
+`omx team` is for work that can be split across independent lanes, such as architecture analysis, test writing, and implementation. In the current docs, team workers use dedicated git worktrees by default, which matters a lot. Parallel AI work goes wrong quickly when multiple workers share the same writable tree.
+
+In practice, a natural rhythm looks like this:
+
+- use a web AI to shape Specification
+- move into `omx` to generate `Architecture.md` with repo context
+- generate `planning.md`
+- execute smaller tasks in a single-agent loop
+- use `Ralph` or `Team` only when persistence or parallelism is clearly helpful
+- return to the original verification requirements for final acceptance
+
+This is slower than asking the AI to complete the whole task at once, but it is much more stable and easier to review.
+
+## My honest take on OMX
+
+I think `omx` is a very good entry point for initial harness practice because it already gives you many of the engineering surfaces you need: state, coordination, command entry points, skill routing, and long-task modes. You do not have to build your own orchestration layer from scratch just to begin.
+
+But initial practice should not be confused with a final destination. As your understanding of harness design gets deeper, you will likely develop stronger opinions of your own about task decomposition, verification strategy, state management, and agent boundaries. At that stage, `omx` may no longer be the final tool you want to use. It is better understood as a ready-made scaffold that helps you enter the space with much less setup cost.
+
+It is also worth remembering that `omx` itself is still evolving. Its command surface, skills, and team runtime are already useful today, but they should not be treated as a fixed endpoint.
+
+But it is not free of friction.
+
+First, both `Ralph` and `Team` can fail in long-running scenarios, especially when the task is aggressive, sessions are interrupted, or the workspace state is already messy. Sometimes the runtime ends up in `shutdown`, and recovery is not always effortless.
+
+Second, `.omx/` can accumulate a lot of intermediate state and leftover files after interrupted team runs. In theory that is what makes recovery possible. In practice, if cleanup and recovery are not handled well, the directory becomes operational overhead.
+
+Third, the token cost is very real. This is not only OMX's fault. Long tasks, many agents, and large context windows are inherently expensive. Still, in day-to-day use, a few complex tasks can consume a surprising amount of a weekly Codex allowance under ChatGPT Plus. That turns cost into an engineering concern, not just a billing detail.
+
+So my conclusion is not that OMX defines the final standard harness. My conclusion is that it is a useful scaffold for starting your own harness practice. Harness itself still does not have one fixed workflow. The version that works best is usually something you develop gradually inside your own projects.
+
+If you plan to use this style of workflow heavily, I would seriously consider either self-hosting a model at least in the `32B` range, or splitting the work by stage: web AI for requirement and design discussions, CLI agents for codebase-aware implementation and verification. The first reduces cost. The second reserves expensive context for the stages that genuinely need repository knowledge.
+
+That is also where I have landed more broadly with AI development: do not focus only on making the model stronger. Put the model inside a better harness. In long-running work, the difference between success and drift is often not intelligence alone. It is whether you defined the constraints, the checks, and the recovery path before execution started.
+
+## References
+
+- Anthropic: [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)
+- oh-my-codex Docs: [Documentation](https://yeachan-heo.github.io/oh-my-codex-website/docs.html)
+- oh-my-codex Website: [oh-my-codex](https://yeachan-heo.github.io/oh-my-codex-website/)
+- Cover image: [MD Shakil on Unsplash](https://unsplash.com/photos/a-close-up-of-a-horse-with-a-bridle-on-vNaqm7RuAQ0)

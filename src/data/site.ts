@@ -67,7 +67,13 @@ export const labels = {
     next: "下一页",
     pageLabel: "页码",
     coverLabel: "封面",
-    noPosts: "还没有文章，第一篇日志很快就会出现。"
+    noPosts: "还没有文章，第一篇日志很快就会出现。",
+    relatedPosts: "相关文章",
+    articleInfo: "文章信息",
+    readingTags: "标签",
+    publishedAt: "发布时间",
+    inCategory: "分类",
+    relatedPlaceholder: "随着文章增多，这里会出现同主题内容。"
   },
   en: {
     localeName: "English",
@@ -92,6 +98,12 @@ export const labels = {
     next: "Next",
     pageLabel: "Page",
     coverLabel: "Cover",
-    noPosts: "No posts yet. The first log should land soon."
+    noPosts: "No posts yet. The first log should land soon.",
+    relatedPosts: "Related posts",
+    articleInfo: "Article info",
+    readingTags: "Tags",
+    publishedAt: "Published",
+    inCategory: "Category",
+    relatedPlaceholder: "Related entries will show up here as the log grows."
   }
 } as const;
