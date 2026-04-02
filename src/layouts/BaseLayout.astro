@@ -22,7 +22,7 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
 ---
 
 <!doctype html>
-<html lang={locale}>
+<html lang={locale} data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -32,8 +32,39 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
     <link rel="alternate" hrefLang="zh" href={`${site.url}/zh/`} />
     <link rel="alternate" hrefLang="en" href={`${site.url}/en/`} />
     <link rel="alternate" type="application/rss+xml" title={`${site.title} RSS`} href={`/${locale}/rss.xml`} />
+    <script is:inline>
+      (() => {
+        const savedTheme = localStorage.getItem("site-theme");
+        if (savedTheme === "green" || savedTheme === "light") {
+          document.documentElement.dataset.theme = savedTheme;
+        }
+      })();
+    </script>
     <style is:global>
       :root {
+        --bg: #f5f7f4;
+        --bg-soft: rgba(255, 255, 255, 0.78);
+        --panel: rgba(255, 255, 255, 0.88);
+        --line: rgba(16, 80, 48, 0.12);
+        --text: #18241c;
+        --text-dim: #5c6f63;
+        --accent: #1f8a55;
+        --accent-strong: #106f45;
+        --warn: #9b6b16;
+        --shadow: rgba(21, 38, 28, 0.12);
+        --shell-top-bg: rgba(246, 249, 246, 0.94);
+        --switch-bg: linear-gradient(135deg, rgba(31, 138, 85, 0.1), rgba(178, 215, 190, 0.45)), rgba(255, 255, 255, 0.82);
+        --switch-thumb-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 247, 244, 0.92));
+        --switch-thumb-border: rgba(31, 138, 85, 0.14);
+        --switch-link: #1f8a55;
+        --post-card-bg: rgba(255, 255, 255, 0.68);
+        --cover-panel-bg: linear-gradient(135deg, rgba(31, 138, 85, 0.08), rgba(244, 248, 245, 0.92));
+        --cover-fallback-bg: linear-gradient(135deg, rgba(31, 138, 85, 0.08), rgba(198, 220, 205, 0.12), rgba(255, 255, 255, 0.82));
+        --grid-line: rgba(31, 138, 85, 0.05);
+        --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
+        --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+      html[data-theme="green"] {
         --bg: #091015;
         --bg-soft: rgba(9, 16, 21, 0.72);
         --panel: rgba(14, 24, 30, 0.8);
@@ -44,14 +75,21 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         --accent-strong: #b8ff6d;
         --warn: #ffcc66;
         --shadow: rgba(0, 0, 0, 0.3);
-        --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
-        --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+        --shell-top-bg: transparent;
+        --switch-bg: linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(184, 255, 109, 0.08)), rgba(9, 16, 21, 0.72);
+        --switch-thumb-bg: linear-gradient(180deg, rgba(17, 30, 37, 0.96), rgba(8, 14, 18, 0.88));
+        --switch-thumb-border: rgba(121, 255, 168, 0.2);
+        --switch-link: rgba(121, 255, 168, 0.86);
+        --post-card-bg: rgba(255, 255, 255, 0.02);
+        --cover-panel-bg: linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(9, 16, 21, 0.4));
+        --cover-fallback-bg: linear-gradient(135deg, rgba(121, 255, 168, 0.08), rgba(184, 255, 109, 0.04), rgba(9, 16, 21, 0.5));
+        --grid-line: rgba(121, 255, 168, 0.03);
       }
       * { box-sizing: border-box; }
       html {
         background:
-          radial-gradient(circle at top, rgba(121, 255, 168, 0.09), transparent 32%),
-          linear-gradient(180deg, #071015 0%, #091015 55%, #060b0e 100%);
+          radial-gradient(circle at top, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%),
+          linear-gradient(180deg, color-mix(in srgb, var(--bg) 92%, white 8%) 0%, var(--bg) 56%, color-mix(in srgb, var(--bg) 94%, black 6%) 100%);
         color: var(--text);
         font-family: var(--sans);
         min-height: 100%;
@@ -61,21 +99,21 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         margin: 0;
         min-height: 100vh;
         background-image:
-          linear-gradient(rgba(121, 255, 168, 0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(121, 255, 168, 0.03) 1px, transparent 1px);
+          linear-gradient(var(--grid-line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
         background-size: 24px 24px;
       }
       a { color: var(--accent); text-decoration: none; }
       a:hover { color: var(--accent-strong); }
       main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 72px; }
       .shell { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 60px var(--shadow); overflow: hidden; backdrop-filter: blur(12px); }
-      .shell-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+      .shell-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--shell-top-bg); }
       .shell-dots { display: flex; gap: 8px; }
       .shell-dots span { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
       .shell-dots span:nth-child(1) { background: #ff7b72; }
       .shell-dots span:nth-child(2) { background: #f2cc60; }
       .shell-dots span:nth-child(3) { background: #7ee787; }
-      .shell-top code, .meta-strip, nav, .chip, .tag, .mono, .lang-switcher { font-family: var(--mono); }
+      .shell-top code, .meta-strip, nav, .chip, .tag, .mono, .lang-switcher, .theme-switcher { font-family: var(--mono); }
       header.site-header { padding: 22px 22px 10px; }
       .header-row {
         display: flex;
@@ -95,6 +133,13 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
       }
       nav a { color: var(--text-dim); display: inline-flex; align-items: center; min-height: 34px; line-height: 1; }
       nav a:hover, nav a[aria-current="page"] { color: var(--accent); }
+      .header-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+        flex: 0 0 auto;
+      }
       .lang-switcher {
         --switch-pad: 4px;
         position: relative;
@@ -103,14 +148,11 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         align-items: center;
         border: 1px solid rgba(121, 255, 168, 0.34);
         border-radius: 999px;
-        background:
-          linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(184, 255, 109, 0.08)),
-          rgba(9, 16, 21, 0.72);
+        background: var(--switch-bg);
         box-shadow:
           inset 0 0 0 1px rgba(255, 255, 255, 0.04),
           0 8px 24px rgba(0, 0, 0, 0.16);
         flex: 0 0 auto;
-        margin-left: auto;
         padding: var(--switch-pad);
         isolation: isolate;
       }
@@ -122,9 +164,8 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         left: var(--switch-pad);
         width: calc((100% - (var(--switch-pad) * 2)) / 2);
         border-radius: 999px;
-        background:
-          linear-gradient(180deg, rgba(17, 30, 37, 0.96), rgba(8, 14, 18, 0.88));
-        border: 1px solid rgba(121, 255, 168, 0.2);
+        background: var(--switch-thumb-bg);
+        border: 1px solid var(--switch-thumb-border);
         box-shadow:
           0 12px 20px rgba(0, 0, 0, 0.24),
           inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -155,10 +196,67 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         font-weight: 600;
       }
       .lang-segment-link {
-        color: rgba(121, 255, 168, 0.86);
+        color: var(--switch-link);
         transition: color 180ms ease;
       }
       .lang-segment-link:hover {
+        color: var(--accent-strong);
+      }
+      .theme-switcher {
+        --switch-pad: 4px;
+        position: relative;
+        display: inline-grid;
+        grid-template-columns: repeat(2, minmax(78px, 1fr));
+        align-items: center;
+        padding: var(--switch-pad);
+        border: 1px solid rgba(31, 138, 85, 0.22);
+        border-radius: 999px;
+        background: var(--switch-bg);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+          0 8px 24px rgba(0, 0, 0, 0.12);
+        color: var(--text-dim);
+      }
+      .theme-switcher::before {
+        content: "";
+        position: absolute;
+        top: var(--switch-pad);
+        bottom: var(--switch-pad);
+        left: var(--switch-pad);
+        width: calc((100% - (var(--switch-pad) * 2)) / 2);
+        border-radius: 999px;
+        background: var(--switch-thumb-bg);
+        border: 1px solid var(--switch-thumb-border);
+        box-shadow:
+          0 10px 20px rgba(0, 0, 0, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transform: translateX(0);
+        transition: transform 220ms ease;
+        z-index: 0;
+      }
+      .theme-switcher[data-theme="green"]::before {
+        transform: translateX(100%);
+      }
+      .theme-switcher-button {
+        position: relative;
+        z-index: 1;
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        min-width: 78px;
+        min-height: 40px;
+        padding: 0 14px;
+        border-radius: 999px;
+        font: inherit;
+        cursor: pointer;
+      }
+      .theme-switcher-button.is-active {
+        color: var(--text);
+        font-weight: 600;
+        cursor: default;
+      }
+      .theme-switcher-button:not(.is-active):hover {
         color: var(--accent-strong);
       }
       .content { padding: 12px 22px 26px; }
@@ -170,7 +268,7 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
       p { color: var(--text-dim); line-height: 1.8; }
       ul.clean { list-style: none; padding: 0; margin: 0; }
       .post-list { display: grid; gap: 14px; }
-      .post-card { display: block; border: 1px solid var(--line); border-radius: 16px; padding: 16px; background: rgba(255, 255, 255, 0.02); transition: transform 180ms ease, border-color 180ms ease; }
+      .post-card { display: block; border: 1px solid var(--line); border-radius: 16px; padding: 16px; background: var(--post-card-bg); transition: transform 180ms ease, border-color 180ms ease; }
       .post-card:hover { transform: translateY(-2px); border-color: rgba(121, 255, 168, 0.3); }
       .meta-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 0.84rem; color: var(--warn); }
       .chip, .tag { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); }
@@ -262,11 +360,11 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         flex-wrap: wrap;
         gap: 8px;
       }
-      .cover-panel { margin-bottom: 14px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: linear-gradient(135deg, rgba(121, 255, 168, 0.12), rgba(9, 16, 21, 0.4)); min-height: 220px; position: relative; }
+      .cover-panel { margin-bottom: 14px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--cover-panel-bg); min-height: 220px; position: relative; }
       .cover-panel-compact { min-height: 150px; }
       .cover-panel img, .cover-fallback { display: block; width: 100%; height: 100%; min-height: inherit; object-fit: cover; }
-      .cover-fallback { position: relative; padding: 18px; background: linear-gradient(135deg, rgba(121, 255, 168, 0.08), rgba(184, 255, 109, 0.04), rgba(9, 16, 21, 0.5)); }
-      .cover-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(121, 255, 168, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(121, 255, 168, 0.06) 1px, transparent 1px); background-size: 24px 24px; }
+      .cover-fallback { position: relative; padding: 18px; background: var(--cover-fallback-bg); }
+      .cover-grid { position: absolute; inset: 0; background-image: linear-gradient(color-mix(in srgb, var(--accent) 14%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--accent) 14%, transparent) 1px, transparent 1px); background-size: 24px 24px; }
       .cover-copy { position: relative; z-index: 1; display: grid; gap: 8px; align-content: end; min-height: inherit; }
       .cover-copy strong { font-size: clamp(1.4rem, 3vw, 2.2rem); max-width: 14ch; }
       footer.site-footer { padding: 0 22px 22px; color: var(--text-dim); }
@@ -280,7 +378,7 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
       }
       @media (max-width: 640px) {
         .header-row { align-items: flex-start; flex-direction: column; }
-        .lang-switcher { margin-left: 0; }
+        .header-controls { margin-left: 0; flex-wrap: wrap; }
       }
     </style>
   </head>
@@ -299,17 +397,23 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
                 <a href={item.href} aria-current={Astro.url.pathname === item.href ? "page" : undefined}>{item.label}</a>
               ))}
             </nav>
-            <div class="lang-switcher" data-locale={locale} aria-label="Language switcher">
-              {locale === "zh" ? (
-                <span class="lang-segment lang-segment-active" aria-current="true">中文</span>
-              ) : (
-                <a class="lang-segment lang-segment-link" href={zhSwitchHref}>中文</a>
-              )}
-              {locale === "en" ? (
-                <span class="lang-segment lang-segment-active" aria-current="true">English</span>
-              ) : (
-                <a class="lang-segment lang-segment-link" href={enSwitchHref}>English</a>
-              )}
+            <div class="header-controls">
+              <div class="theme-switcher" data-theme="light" aria-label={copy.themeSwitcher}>
+                <button class="theme-switcher-button is-active" type="button" data-theme-value="light">{copy.themeLight}</button>
+                <button class="theme-switcher-button" type="button" data-theme-value="green">{copy.themeDark}</button>
+              </div>
+              <div class="lang-switcher" data-locale={locale} aria-label="Language switcher">
+                {locale === "zh" ? (
+                  <span class="lang-segment lang-segment-active" aria-current="true">中文</span>
+                ) : (
+                  <a class="lang-segment lang-segment-link" href={zhSwitchHref}>中文</a>
+                )}
+                {locale === "en" ? (
+                  <span class="lang-segment lang-segment-active" aria-current="true">English</span>
+                ) : (
+                  <a class="lang-segment lang-segment-link" href={enSwitchHref}>English</a>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -317,5 +421,33 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         <footer class="site-footer"><span>{copy.email}: </span><a href={`mailto:${site.email}`}>{site.email}</a></footer>
       </div>
     </main>
+    <script is:inline>
+      (() => {
+        const root = document.documentElement;
+        const switcher = document.querySelector(".theme-switcher");
+        if (!switcher) return;
+
+        const buttons = Array.from(switcher.querySelectorAll(".theme-switcher-button"));
+        const applyTheme = (theme) => {
+          root.dataset.theme = theme;
+          switcher.dataset.theme = theme;
+          buttons.forEach((button) => {
+            const active = button.dataset.themeValue === theme;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+        };
+
+        applyTheme(root.dataset.theme === "green" ? "green" : "light");
+
+        buttons.forEach((button) => {
+          button.addEventListener("click", () => {
+            const theme = button.dataset.themeValue === "green" ? "green" : "light";
+            applyTheme(theme);
+            localStorage.setItem("site-theme", theme);
+          });
+        });
+      })();
+    </script>
   </body>
 </html>

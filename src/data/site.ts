@@ -73,7 +73,10 @@ export const labels = {
     readingTags: "标签",
     publishedAt: "发布时间",
     inCategory: "分类",
-    relatedPlaceholder: "随着文章增多，这里会出现同主题内容。"
+    relatedPlaceholder: "随着文章增多，这里会出现同主题内容。",
+    themeLight: "浅色",
+    themeDark: "深色",
+    themeSwitcher: "主题切换"
   },
   en: {
     localeName: "English",
@@ -104,6 +107,9 @@ export const labels = {
     readingTags: "Tags",
     publishedAt: "Published",
     inCategory: "Category",
-    relatedPlaceholder: "Related entries will show up here as the log grows."
+    relatedPlaceholder: "Related entries will show up here as the log grows.",
+    themeLight: "Light",
+    themeDark: "Dark",
+    themeSwitcher: "Theme switcher"
   }
 } as const;
