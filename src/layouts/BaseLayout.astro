@@ -16,9 +16,9 @@ const pageDescription = description ?? site.description[locale];
 const alternateLocale = locale === "zh" ? "en" : "zh";
 const currentPath = Astro.url.pathname;
 const fallbackAlternatePath = currentPath.replace(`/${locale}/`, `/${alternateLocale}/`);
-const languageSwitchHref = alternateHref ?? fallbackAlternatePath;
-const zhSwitchHref = locale === "zh" ? undefined : currentPath.replace(`/${locale}/`, "/zh/");
-const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${locale}/`, "/en/");
+const alternateSwitchHref = alternateHref ?? fallbackAlternatePath;
+const zhSwitchHref = locale === "zh" ? currentPath : alternateSwitchHref;
+const enSwitchHref = locale === "en" ? currentPath : alternateSwitchHref;
 ---
 
 <!doctype html>
@@ -176,7 +176,7 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
       .lang-switcher[data-locale="en"]::before {
         transform: translateX(100%);
       }
-      .lang-segment {
+      .lang-switcher-button {
         position: relative;
         z-index: 1;
         display: inline-flex;
@@ -190,16 +190,23 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
         line-height: 1;
         font-size: 0.82rem;
         letter-spacing: 0.04em;
+        appearance: none;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
+        transition: color 180ms ease;
       }
-      .lang-segment-active {
+      .lang-switcher-button.is-active {
         color: var(--text);
         font-weight: 600;
+        cursor: default;
       }
-      .lang-segment-link {
+      .lang-switcher-button:not(.is-active) {
         color: var(--switch-link);
         transition: color 180ms ease;
       }
-      .lang-segment-link:hover {
+      .lang-switcher-button:not(.is-active):hover {
         color: var(--accent-strong);
       }
       .theme-switcher {
@@ -402,17 +409,23 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
                 <button class="theme-switcher-button is-active" type="button" data-theme-value="light">{copy.themeLight}</button>
                 <button class="theme-switcher-button" type="button" data-theme-value="green">{copy.themeDark}</button>
               </div>
-              <div class="lang-switcher" data-locale={locale} aria-label="Language switcher">
-                {locale === "zh" ? (
-                  <span class="lang-segment lang-segment-active" aria-current="true">中文</span>
-                ) : (
-                  <a class="lang-segment lang-segment-link" href={zhSwitchHref}>中文</a>
-                )}
-                {locale === "en" ? (
-                  <span class="lang-segment lang-segment-active" aria-current="true">English</span>
-                ) : (
-                  <a class="lang-segment lang-segment-link" href={enSwitchHref}>English</a>
-                )}
+              <div class="lang-switcher" data-locale={locale} aria-label={copy.languageSwitcher}>
+                <a
+                  class={`lang-switcher-button${locale === "zh" ? " is-active" : ""}`}
+                  href={zhSwitchHref}
+                  data-locale-value="zh"
+                  aria-current={locale === "zh" ? "true" : undefined}
+                >
+                  中文
+                </a>
+                <a
+                  class={`lang-switcher-button${locale === "en" ? " is-active" : ""}`}
+                  href={enSwitchHref}
+                  data-locale-value="en"
+                  aria-current={locale === "en" ? "true" : undefined}
+                >
+                  English
+                </a>
               </div>
             </div>
           </div>
@@ -445,6 +458,51 @@ const enSwitchHref = locale === "en" ? undefined : currentPath.replace(`/${local
             const theme = button.dataset.themeValue === "green" ? "green" : "light";
             applyTheme(theme);
             localStorage.setItem("site-theme", theme);
+          });
+        });
+
+        const languageSwitcher = document.querySelector(".lang-switcher");
+        if (!languageSwitcher) return;
+
+        const localeButtons = Array.from(languageSwitcher.querySelectorAll(".lang-switcher-button"));
+        let isNavigating = false;
+
+        const applyLocale = (nextLocale) => {
+          languageSwitcher.dataset.locale = nextLocale;
+          localeButtons.forEach((button) => {
+            const active = button.dataset.localeValue === nextLocale;
+            button.classList.toggle("is-active", active);
+            if (active) {
+              button.setAttribute("aria-current", "true");
+            } else {
+              button.removeAttribute("aria-current");
+            }
+          });
+        };
+
+        applyLocale(languageSwitcher.dataset.locale === "en" ? "en" : "zh");
+
+        localeButtons.forEach((button) => {
+          button.addEventListener("click", (event) => {
+            const nextLocale = button.dataset.localeValue === "en" ? "en" : "zh";
+            const isModifiedClick =
+              event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+
+            if (nextLocale === languageSwitcher.dataset.locale) {
+              event.preventDefault();
+              return;
+            }
+
+            if (isModifiedClick || isNavigating) {
+              return;
+            }
+
+            event.preventDefault();
+            isNavigating = true;
+            applyLocale(nextLocale);
+            window.setTimeout(() => {
+              window.location.assign(button.href);
+            }, 180);
           });
         });
       })();

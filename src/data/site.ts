@@ -74,6 +74,7 @@ export const labels = {
     publishedAt: "发布时间",
     inCategory: "分类",
     relatedPlaceholder: "随着文章增多，这里会出现同主题内容。",
+    languageSwitcher: "语言切换",
     themeLight: "浅色",
     themeDark: "深色",
     themeSwitcher: "主题切换"
@@ -108,6 +109,7 @@ export const labels = {
     publishedAt: "Published",
     inCategory: "Category",
     relatedPlaceholder: "Related entries will show up here as the log grows.",
+    languageSwitcher: "Language switcher",
     themeLight: "Light",
     themeDark: "Dark",
     themeSwitcher: "Theme switcher"
