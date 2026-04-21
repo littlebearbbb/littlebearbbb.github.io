@@ -1,0 +1,98 @@
+---
+title: Using OpenClaw to Automate GitLab Workflows Inside a Team
+description: A practical internal write-up based on gitlab-cli-skills, covering glab login, test requests, release requests, and email-driven code review automation.
+translationKey: openclaw-gitlab-workflow
+date: 2026-04-21
+locale: en
+category: coding
+tags:
+  - openclaw
+  - gitlab
+  - workflow
+  - automation
+  - ai engineering
+cover:
+  src: /covers/openclaw-gitlab.png
+  alt: OpenClaw official cover image
+  eyebrow: openclaw.gitlab
+draft: false
+---
+
+This post is about something fairly specific: how we used OpenClaw skills inside the team to automate part of our GitLab workflow. I was not trying to build some large AI platform from the start. The initial motivation was much more practical. Some parts of the workflow had already become repetitive enough that continuing to do them by hand no longer made much sense, especially test requests, release requests, and the mechanical prep work that happens after someone assigns you as a reviewer. Those tasks already have clear rules and fairly fixed formats, which makes them a good fit for an agent.
+
+I started from [gitlab-cli-skills](https://clawhub.ai/vince-winkintel/gitlab-cli-skills). Since our workflow runs on an internal GitLab instance, the prerequisite is simple: get `glab` authenticated against the self-hosted GitLab first. Only then can OpenClaw use those commands to operate issues, merge requests, and the rest of the GitLab resources.
+
+```bash
+glab auth login --hostname gitlab.xxxx.com
+```
+
+Here `--hostname` is the hostname of your internal GitLab. The login flow is interactive. In my case the choices were consistently the same: use `https`, allow Git to authenticate with the same credentials, and choose token-based authentication. The prompts look roughly like this:
+
+```text
+? Preferred protocol: https
+? Authenticate Git with your credentials: Yes
+? How would you like to authenticate: Token
+```
+
+Once the GitLab Personal Access Token is pasted in, the setup is done. At that point there is still no automation yet. This is really just the plumbing. But it matters because everything that follows depends on `gitlab-cli-skills`, and `gitlab-cli-skills` ultimately talks to GitLab through `glab`.
+
+## From a ready-made skill set to internal workflow customization
+
+Once the basic setup was working, the place where I really started making changes was adapting `gitlab-cli-skills` so it fit our team's own workflow more closely. A ready-made skill set being able to operate GitLab is useful, but that is not where the real friction is. Inside a team, the harder problem is not whether you can create an issue or an MR. The harder problem is whether what gets created actually matches the process requirements on our side.
+
+The first thing I changed was the test request flow. In our team, a test request is submitted as an issue with a fixed template, and it must include the tag deployed to the test environment. That already makes it a good candidate for automation, because the information is structured even if filling it out is still tedious. So I added a `glab-test-request` skill to `gitlab-cli-skills`, packaging both the template and the command interface for that process. After that, OpenClaw was no longer just creating an issue for me. It was creating an issue in the shape our team actually uses for test requests.
+
+What I want to emphasize in this skill is not the template itself, but the fact that it starts to understand team context. It can compare the current tag with the previous one, look at the commit diff, fill in the test request content from the new commit messages, and assign the request to the QA owner. None of this was impossible to do manually, but every time someone had to go through the tags, review the commits, organize the text, and check again that nothing was missing. Once a process repeats often enough, people naturally start skipping steps or writing a request that is not very useful to the next person reading it. After these constraints were moved into the skill, a test request started to feel more like a repeatable command than something completed from memory.
+
+The release request followed the same idea. In our team, release applications go through a `develop` to `master` MR. Feature releases and hotfixes follow different approval paths, and the MR must carry the `Release Quest` label or the release CI flow will not trigger. Rules like this also take a surprising amount of repetitive time around each release. So I added `glab-mr-release` and pushed the template, parameter rules, and approval differences into the skill itself. Once that was done, what OpenClaw produced was no longer just a normal MR. It was an MR shaped for our internal release process.
+
+After these two skills were in place, my impression was very direct. OpenClaw could finish both tasks quickly, and the quality was also better than creating them by hand. Once test requests and release requests can be expressed clearly through skills, they become very suitable tasks for an agent to automate, and at the very least they remove a large amount of repetitive manual work from the process.
+
+## Bringing code review into the same flow
+
+Beyond test requests and release requests, I felt code review was another strong candidate for automation. A lot of open source projects are already experimenting with agent review, and the reason is easy to understand. There is a visible layer of repetitive work before the actual review judgment even begins. Once you are assigned as a reviewer, you still have to notice the notification, open the project, locate the diff, and reconstruct the context before the review can even start.
+
+When I first looked into this, I found two broad directions for GitLab review agents. The first one was webhook-based triggering. In that model, GitLab sends a POST request to an endpoint whenever an event happens. If OpenClaw exposes a matching endpoint, assigning someone as a reviewer can directly trigger the AI review flow. The appeal is obvious: the chain is short and automatic.
+
+But there was a very practical problem in my case. My OpenClaw instance runs locally and does not expose a public address. If GitLab cannot reach OpenClaw, then the webhook route is not something I can actually deploy in the current environment. So I did not use that approach.
+
+The alternative I ended up with was to lean on our existing email notifications. Our GitLab review workflow already sends mail to corporate email accounts when someone is assigned as a reviewer. That means OpenClaw does not have to be called directly by GitLab. It can instead poll the mailbox on a schedule, identify which messages correspond to review work, and continue from there.
+
+For that layer I used [himalaya](https://github.com/pimalaya/himalaya), a general-purpose email CLI that supports IMAP. In this setup it becomes the entry point for the whole chain. I installed it through `cargo`:
+
+```bash
+cargo install himalaya
+```
+
+After installation, the config file lives at `~/.config/himalaya/config.toml`. The structure I used looks like this:
+
+```toml
+[accounts.163]
+email = "xxx@dingdao.com"
+display-name = "xxxx"
+default = true
+
+backend.type = "imap"
+backend.host = "imaphz.qiye.163.com"
+backend.port = 993
+backend.encryption.type = "tls"
+backend.login = "xxxx@dingdao.com"
+backend.auth.type = "password"
+backend.auth.raw = "xxxx"
+
+message.send.backend.type = "smtp"
+message.send.backend.host = "smtphz.qiye.163.com"
+message.send.backend.port = 994
+message.send.backend.encryption.type = "tls"
+message.send.backend.login = "xxxx@dingdao.com"
+message.send.backend.auth.type = "password"
+message.send.backend.auth.raw = "xxxx"
+```
+
+The `auth.raw` value here is not the mailbox login password itself. It is the client authorization password. For 163 enterprise mail, you can generate it from `Settings -> Account & Security -> Client Settings`, and then fill that token into the config.
+
+On top of that mail path, I built a `himalaya-email-checker` skill. Its job is to validate message format, filter out the review-related emails, extract key information such as the project path and project ID, and then pass control back to `gitlab-cli-skills` so the diff can be fetched and the review result can be submitted. At that point the review automation path becomes complete.
+
+Looking back, the most interesting part of this practice is not that any single skill is especially complex. What matters more is that OpenClaw started to take on the role of turning process into executable constraints inside the team. Test requests, release requests, and review notifications were all things people already knew how to handle, but in practice they still relied on experience, memory, and manual patching. Once those flows were moved into skills, a large amount of repetitive work could be delegated to the agent while engineers kept the final judgment and confirmation.
+
+That is also the main point I wanted this article to emphasize. For a team, the value of OpenClaw does not necessarily show up first in how much code it can write. It may show up earlier in whether it can turn stable internal workflow rules into something that can be executed repeatedly. Once the rules are clear enough, many day-to-day GitLab operations are worth automating.
