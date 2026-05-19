@@ -1,0 +1,164 @@
+---
+title: 用 LLM Wiki 搭一套「产品 Agent」工作流
+description: 从 Karpathy 的 LLM Wiki 思路出发，搭私域知识库，再配合 GitLab skill 与入口级的 Product Workflow，把产品讨论、PRD、Epic 拆分和知识维护串成可重复执行的流程。
+translationKey: wiki-llm-product-agent
+date: 2026-05-19
+locale: zh
+category: coding
+tags:
+  - llm wiki
+  - knowledge base
+  - agent
+  - product
+  - gitlab
+  - hermes
+  - ai engineering
+cover:
+  src: /covers/llm-wiki.png
+  alt: LLM Wiki 与产品 Agent 工作流的示意头图
+  eyebrow: wiki.agent
+draft: false
+---
+
+import Mermaid from "../../components/Mermaid.astro";
+
+这段时间我在了解 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 之后，把它当成一套「私域知识库 + Agent 工作流」的底座，做了一次具体实践。这篇文章主要想记录我对 LLM Wiki 的理解，以及我怎么基于这套思路去构建一个产品 Agent：知识库如何组织，产品工作流如何串起来，最后又如何和 GitLab 上的 PRD、Epic、Issue 这些需求资产衔接。
+
+下面我会先按 gist 里最关键的那几条理念，对齐一下我对 LLM Wiki 的理解；再写我怎样在此基础上做产品 Agent：**知识库长什么样、入口 skill 怎么设计、Hermes 里怎么挂定时任务和默认提示词**。中间我放了一张架构图，把整体串起来。
+
+## LLM Wiki 在说什么
+
+Andrej Karpathy 在那份 gist 里描述的，并不是再做一个「上传文件 → 向量检索 → 答一次题」的 RAG；他强调的是一种会持续维护的中间层：模型不只在提问瞬间去拼片段，而是把读过的材料整理进一套互联的 wiki 里，包括实体页、概念页、摘要、对照表、索引等内容。交叉引用提前存在，矛盾会被标出来，综述也会随着新材料迭代。我的理解是，wiki 本身会成为一个持续积累的知识产物，而不是每次问答都从零重新发现知识。
+
+从这个角度，我自己的感受更接近「把知识**显式地摊开**给模型」：
+
+- **网络化**：页面之间的关系、索引与入口，本身就是线索；模型不必每次都从大量原始文档里重新查找。
+- **减轻上下文压力**：大量细节落在 wiki 层，对话里更多是做检索、对齐与增量更新，而不是每次把整个资料堆塞进提示词。
+- **利用效率更高**：知识已经按类型归档，并且通过页面关系连接起来，查询时更容易找到相关内容。
+
+gist 里把结构分成很清晰的三层，我后面搭库也基本按这个结构来理解：
+
+1. **Raw**：原始资料放进来的地方，偏向「只读真相源」，ingest 时从这里读，不在这里乱改语义。
+2. **Wiki**：模型主导维护的一层 markdown，包括摘要、实体、概念、来源引用、对照比较等内容。人负责读与审，模型负责写与串联。
+3. **Schema**：告诉模型目录怎么长、页面怎么写、ingest / query / lint 的时候要遵守什么流程。这一层决定模型如何维护知识库。
+
+运营层面 gist 提了三个动作，也非常贴合工程化：
+
+- **Ingest**：新资料进 raw，模型读、抽要点、更新索引与相关页，必要的话在 log 里留痕。
+- **Query**：对着 wiki 发问，带着引用组织答案；有价值的回答还可以补充回 wiki，成为后续知识的一部分。
+- **Lint**：定期做健康检查，包括陈旧信息、孤立页面、缺少页面的重要概念、没有补齐的交叉引用等。
+
+他也提到了 **Obsidian** 对人的一侧：侧边开 Agent，另一边开图视图；人看文档关系和关键页面，模型负责批量改文件。wiki 本身可以就是一个 git 仓库，这套组合在实践里也比较自然。
+
+## 我怎样理解「产品 Agent」
+
+对我来讲，产品 Agent 不只是用来生成 PRD 的工具。我更愿意把它定义成：**以知识和经验为主的智能体**，并且它的动作要尽量贴着团队真实协作方式来设计。也就是说，先要有一套团队可用的知识结构与工作流，Agent 才能在具体流程里发挥作用。
+
+所以顺序是：先构建 LLM Wiki 的私域知识库，再思考还需要哪些 skill 作为工具，最后用**入口 skill**把「聊需求 → 落文档 → 拆 Epic → 知识回收」串起来。
+
+## 知识库：按 LLM Wiki 的标准拆三层
+
+我的目录结构和 gist 的三层一一对应，只是在 `wiki` 里按用途拆得更细一点，方便人和模型使用。
+
+- **`raw/`**  
+  原始文档与裁剪下来的来源材料。ingest 的起点。
+
+- **`wiki/`**  
+  下面分了 `comparisons`、`concepts`、`entities`、`sources`、`summaries` 等不同类型的页面区。本质是把 gist 里提到的 summary / entity / concept / comparisons 这些页面类型固定下来，减少模型每次处理资料时重新判断分类的成本。
+
+- **`schema/`**  
+  这一层写清楚：整体目录语义、wiki 页的格式约定（含 **Obsidian** 友善的链接与别名习惯）、以及 **Ingest / Query / Lint** 的具体 SOP：  
+  - Ingest：原始资料进 raw 之后，如何抽主题、写哪几类页、如何更新索引、如何记变更日志。  
+  - Query：如何先从索引或目录入口收窄范围，再深读页面、如何带引用回答。  
+  - Lint：定期要检查哪些一致性问题、孤立页面、过期声明。
+
+用 Obsidian 做前端也很常见。它可以可视化地看到文档之间的关系，适合人工维护和审阅知识库；Agent 侧继续负责批量更新 markdown。
+
+### 初始数据与边界
+
+我最初的种子数据来自 GitLab：把产品相关的 **Epic / Issue** 拉下来，当作第一批实体与脉络。这里我觉得初始数据质量很关键，如果一开始进入知识库的信息就不准确，后续维护成本会变高，也会影响模型对知识的理解。
+
+另一个我很在意的点是**领域边界**。我刻意不让「所有产品知识」都进同一个大杂烩，而是让知识库**聚焦在少数几个域**。原因很简单：
+
+- 关联范围太大，query 时会引入更多无关信息。  
+- 维护成本会上升：交叉引用越多，lint 和人工审阅的工作量也会随之增加。
+
+知识库能跑起来之后，我在仓库根目录补了 **`AGENTS.md`**。它的作用很单纯：任何模型在第一次进入这个知识库时，先读到这份库的用途、LLM Wiki 的理念，并且被引导去阅读 `schema`。这样即使是新会话，也能先了解知识库的使用方式。
+
+## Skill 层：GitLab 与 Product Workflow
+
+光有 wiki 还不够。要让流程在团队系统里落地，还需要能够写回 GitLab 的能力。
+
+### GitLab skill
+
+这套 skill 我很早就有，但在想产品 Agent 的时候，我把它更多放在承接产品结论的位置：
+
+- 讨论清楚后，可以把共识整理成 **PRD**，上传到 GitLab Wiki。  
+- 之后可以继续用基于 Wiki 中 PRD 的 **Epic 拆分**工具，把大颗粒需求切成可执行 issue 树。
+
+这两条加上之后，产品 Agent 就有了一条比较明确的工作流：讨论结果可以从对话进入 GitLab，并继续拆成后续可执行的需求。
+
+### Product Workflow skill（入口）
+
+我还做了一个更上位的 **`product workflow` skill**，定位就是 Agent 的**入口 skill**：它不负责替代所有细节工具，而是提供背景信息和主要工作流程。
+
+里面会放齐背景材料——公司背景、项目背景、团队组织、关键仓库与 GitLab 入口——但最核心的还是**主流程指引**：
+
+1. **私域知识库**是产品信息的第一信源；需要时先从 wiki 拉脉络再下结论。  
+2. **GitLab skill**承载 PRD、wiki、issue/epic 相关动作。  
+3. 和用户讨论需求时：该查库就查库；有结论后**询问**是否把 PRD 落到 GitLab，并是否继续 **Epic 拆分**。  
+4. 如果出现新的关键事实，**询问**是否要写入知识库，并走 **Ingest**。  
+5. 用户当场纠正的信息，要落实到**知识更新**（本质上是一次小 ingest 或定向修订）。
+
+## Hermes、定时任务与默认加载
+
+这一套我跑在 **Hermes** 上。除了对话能力之外，我用它的**定时任务**加了一个小脚本：每天扫一遍知识库，如果发现**新增文件**，就触发一轮 **lint / 健康检查**。这样可以及时发现新增内容带来的格式和引用问题。
+
+同时，我把 **Product Workflow skill 默认放进 Hermes 入口提示词**里。效果是：用户提出和需求相关的问题时，Agent 会先进入「产品工作流 + LLM Wiki」这套上下文，再决定是否查询知识库或调用 GitLab 工具。
+
+整体架构可以用下面这张图概括。
+
+<Mermaid
+  chart={`
+flowchart TB
+  User((用户))
+
+  subgraph Hermes["Hermes Agent"]
+    SYS[入口系统提示词<br/>默认挂载 Product Workflow]
+    PWS[Product Workflow Skill<br/>背景 + 主流程剧本]
+    GS[GitLab Skill<br/>PRD / Wiki / Epic 拆分等]
+  end
+
+  subgraph KB["LLM Wiki 知识库仓库"]
+    AG[AGENTS.md<br/>目的 + 导航到 schema]
+    RAW[raw 原始资料]
+    WIKI[wiki 结构化页面<br/>concepts / entities / ...]
+    SCH[schema 约定与<br/>Ingest · Query · Lint]
+  end
+
+  subgraph GL[GitLab]
+    W[Project Wiki]
+    I[Issues / Epics]
+  end
+
+  CRON[定时任务<br/>检测新增文件]
+
+  User <--> Hermes
+  SYS --> PWS
+  PWS --> KB
+  PWS --> GS
+  GS <--> GL
+
+  CRON -->|触发| LINT[lint 健康检查]
+  KB --> CRON
+  LINT --> KB
+`}
+/>
+
+## 写完之后的感受
+
+对我来说，这次实践最大的收获不是「又多了一个 Agent」，而是在做 Agent 的过程中，我越来越意识到知识库设计和维护的重要性。模型可以批量修改很多互相关联的页面，所以前期的目录设计、页面格式和更新流程都需要尽量明确。
+
+反过来，这也会改变一部分产品工作的重心：有些工作会从「每次在聊天里复述背景」转移到**审阅 wiki、划定领域边界、决定什么值得 ingest**。gist 里提到，人负责来源、探索和提问，LLM 负责总结、交叉引用和维护，我觉得这个分工在团队场景里也成立。但专业产品仍然不可替代，因为哪些信息值得入库、哪些只是临时判断，仍然需要人来判断。
+
+如果你也在搭类似系统，最值得参考的可能不是某个目录名，而是这三件事：**三层分离、schema 写清楚流程、入口 skill 把默认工作方式讲清楚**。后面的工具链（GitLab、定时 lint、Obsidian）都可以按环境替换，但这套结构能帮助 Agent 保持比较稳定的行为。

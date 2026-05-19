@@ -1,0 +1,65 @@
+---
+interface Props {
+  chart: string;
+}
+
+const { chart } = Astro.props;
+---
+
+<div class="mermaid-wrap">
+  <div class="mermaid-chart" data-chart={chart} />
+</div>
+
+<script>
+  import mermaid from "mermaid";
+
+  function diagramId() {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return `mmd-${crypto.randomUUID()}`;
+    }
+    return `mmd-${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "loose",
+    theme: "neutral",
+    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+  });
+
+  const charts = document.querySelectorAll<HTMLElement>(".mermaid-chart[data-chart]:not([data-rendered])");
+  for (const el of charts) {
+    const chartText = el.dataset.chart;
+    if (!chartText) continue;
+
+    el.dataset.rendered = "true";
+    void mermaid.render(diagramId(), chartText).then(
+      ({ svg }) => {
+        el.innerHTML = svg;
+      },
+      (err) => {
+        el.innerHTML = `<pre class="mermaid-error">${String(err)}</pre>`;
+      }
+    );
+  }
+</script>
+
+<style>
+  .mermaid-wrap {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+  }
+
+  .mermaid-chart :global(svg) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .mermaid-error {
+    color: var(--text-dim, #666);
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+  }
+</style>

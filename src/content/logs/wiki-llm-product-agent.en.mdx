@@ -1,0 +1,157 @@
+---
+title: Building a product agent workflow on top of LLM Wiki
+description: Notes on building a private LLM Wiki knowledge base, connecting it with GitLab skills and a Product Workflow entry skill, and turning product discussions into PRDs, Epic splits, and knowledge updates.
+translationKey: wiki-llm-product-agent
+date: 2026-05-19
+locale: en
+category: coding
+tags:
+  - llm wiki
+  - knowledge base
+  - agent
+  - product
+  - gitlab
+  - hermes
+  - ai engineering
+cover:
+  src: /covers/llm-wiki.png
+  alt: Cover illustration for LLM Wiki and product agent workflow
+  eyebrow: wiki.agent
+draft: false
+---
+
+import Mermaid from "../../components/Mermaid.astro";
+
+After reading Karpathy’s [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) note, I used it as the foundation for a “private knowledge base + agent workflow” setup. This post mainly records my understanding of LLM Wiki, and how I used that idea to build a product agent: how the knowledge base is organized, how the product workflow is connected, and how the result is linked to GitLab assets such as PRDs, Epics, and Issues.
+
+Below I first go through the key ideas in the gist, then explain how I built the product agent on top of it: what the knowledge base looks like, how the entry skill is designed, and how Hermes scheduling and default prompts are used. A diagram shows the overall structure.
+
+## What LLM Wiki is arguing for
+
+The gist is not advocating yet another RAG pipeline where you upload files, retrieve chunks, and answer once. It describes a middle layer that is continuously maintained: the model does not only stitch fragments together at question time, but organizes what it has read into a linked wiki, including entity pages, concept pages, summaries, comparisons, and an index. Cross-links already exist, contradictions can be surfaced, and synthesis can be updated as new sources arrive. My understanding is that the wiki itself becomes a continuously accumulated knowledge artifact, rather than something rediscovered from scratch in every conversation.
+
+My read is closer to making knowledge **explicitly visible and navigable** for the model:
+
+- **Networked**: relationships between pages, indexes, and entry points are clues; the model does not need to search from a large set of raw documents every time.
+- **Lower context pressure**: details live in the wiki layer; the conversation can focus more on retrieval, alignment, and incremental updates instead of stuffing all materials into the prompt.
+- **Higher usage efficiency**: knowledge is categorized and connected through page relationships, so it is easier to find relevant content during query.
+
+The gist names three structural layers, which is also how I reason about the repo:
+
+1. **Raw** — the place for original materials. During ingest, the model reads from here and does not modify the semantics of the raw source.
+2. **Wiki** — the markdown layer maintained mainly by the model, including summaries, entities, concepts, source references, and comparisons. Humans read and review; the model writes and links.
+3. **Schema** — the rules that tell the model how directories are organized, how pages should be written, and what workflows to follow for ingest / query / lint. This layer defines how the model maintains the knowledge base.
+
+Operationally the gist highlights three actions:
+
+- **Ingest**: new materials go into `raw`; the model reads them, extracts key points, updates the index and related pages, and records changes in the log when needed.
+- **Query**: questions are asked against the wiki; the model organizes answers with references, and valuable answers can be added back into the wiki as part of later knowledge.
+- **Lint**: periodic health checks for stale information, orphan pages, important concepts without pages, and missing cross-references.
+
+Karpathy also mentions **Obsidian** on the human side: keeping the agent on one side and Obsidian graph view on the other. Humans inspect document relationships and key pages; the model updates markdown files in batches. The wiki itself can simply be a git repo.
+
+## How I define a “product agent”
+
+To me, a product agent is not just a tool for generating PRDs. I would define it as an agent centered on **knowledge and experience**, and its actions should follow the team’s actual collaboration workflow. In other words, there needs to be a knowledge structure and workflow that the team can use before the agent can work effectively inside the process.
+
+So the order was: first build the private LLM Wiki knowledge base, then decide which skills are needed as tools, and finally use an **entry skill** to connect “discuss requirement → write document → split Epic → update knowledge.”
+
+## Knowledge base layout
+
+My directory structure follows the three layers from the gist, with a more detailed split inside `wiki` for easier use by both humans and the model.
+
+- **`raw/`** — original documents and clipped source materials. Ingest starts here.
+- **`wiki/`** — split into `comparisons`, `concepts`, `entities`, `sources`, `summaries`, and other page types. This fixes the page categories mentioned in the gist and reduces the cost of deciding where each new piece of information belongs.
+- **`schema/`** — directory semantics, wiki page conventions (including Obsidian-friendly links and aliases), and concrete SOPs for **Ingest / Query / Lint**:
+  - Ingest: after raw materials enter `raw`, how to extract topics, which pages to write, how to update the index, and how to record changes.
+  - Query: how to narrow the scope from the index or entry pages, then read related pages deeply and answer with references.
+  - Lint: which consistency issues, orphan pages, and stale claims need periodic checks.
+
+### Seeds and scope
+
+Initial seed data came from GitLab: I pulled product-related **Epics / Issues** as the first set of entities and context. I think the quality of initial data is important. If inaccurate information enters the knowledge base at the beginning, later maintenance cost becomes higher, and the model’s understanding of the knowledge is also affected.
+
+Another point I care about is **domain boundary**. I intentionally did not put “all product knowledge” into one large wiki. Instead, I focused the knowledge base on a few domains:
+
+- If the association scope is too large, query will introduce more unrelated information.
+- Maintenance cost also increases as cross-references grow, and both lint and human review become more expensive.
+
+After the knowledge base was usable, I added **`AGENTS.md`** at the repository root. Its purpose is simple: when any model enters this knowledge base for the first time, it can first understand the purpose of the repo, the LLM Wiki idea behind it, and then be guided to read `schema`. This helps a new session understand how the knowledge base should be used.
+
+## Skills: GitLab plus Product Workflow
+
+A wiki alone is not enough. To make the workflow land inside the team’s system, the agent also needs the ability to write back to GitLab.
+
+### GitLab skill
+
+I already had this skill earlier, but when thinking about the product agent, I placed it more in the role of carrying product conclusions:
+
+- After the discussion is clear, the conclusion can be organized into a **PRD** and uploaded to GitLab Wiki.
+- Then an **Epic-splitting** tool can be used based on that PRD to break a larger requirement into executable issues.
+
+With these two steps, the product agent has a clearer workflow: discussion results can move from the conversation into GitLab and continue into follow-up executable requirements.
+
+### Product Workflow skill (entry)
+
+I also created a higher-level **`product workflow` skill**, positioned as the **entry skill** for the agent. It does not replace all detailed tools; it provides background information and the main workflow.
+
+It includes company background, project background, team organization, key repositories, and GitLab links. The most important part is the main flow:
+
+1. Treat the **private knowledge base** as the primary source of product information; pull context from the wiki before drawing conclusions.
+2. Use the **GitLab skill** for PRD, wiki, issue, and epic operations.
+3. During requirement discussions, query the knowledge base when needed; after there is a conclusion, **ask** whether to publish the PRD to GitLab and whether to continue Epic splitting.
+4. If new important facts appear, **ask** whether they should be added to the knowledge base and go through **Ingest**.
+5. When the user corrects information, apply that correction as a knowledge update, essentially a small ingest or targeted revision.
+
+## Hermes, scheduled tasks, and default loading
+
+This setup runs on **Hermes**. Besides conversation, I used its **scheduled task** feature to add a small script: every day it scans the knowledge base, and if **new files** are found, it triggers a **lint / health check**. This helps detect format and reference issues introduced by new content.
+
+I also put **Product Workflow skill** into the default Hermes entry prompt. The effect is that when the user asks a requirement-related question, the agent first enters the “product workflow + LLM Wiki” context, then decides whether to query the knowledge base or call GitLab tools.
+
+The overall architecture looks like this:
+
+<Mermaid
+  chart={`
+flowchart TB
+  User((You))
+
+  subgraph Hermes["Hermes agent"]
+    SYS[System prompt<br/>loads Product Workflow by default]
+    PWS[Product Workflow skill<br/>context + playbook]
+    GS[GitLab skill<br/>PRD / wiki / Epic split]
+  end
+
+  subgraph KB["LLM Wiki repo"]
+    AG[AGENTS.md<br/>purpose + pointer to schema]
+    RAW[raw sources]
+    WIKI[wiki pages<br/>concepts / entities / ...]
+    SCH[schema<br/>Ingest · Query · Lint]
+  end
+
+  subgraph GL[GitLab]
+    W[Project wiki]
+    I[Issues / epics]
+  end
+
+  CRON[Scheduled job<br/>watch for new files]
+
+  User <--> Hermes
+  SYS --> PWS
+  PWS --> KB
+  PWS --> GS
+  GS <--> GL
+
+  CRON -->|runs| LINT[lint / health pass]
+  KB --> CRON
+  LINT --> KB
+`}
+/>
+
+## Closing thoughts
+
+For me, the biggest takeaway from this practice is not simply “one more agent,” but that building agents makes the design and maintenance of the knowledge base more important. The model can modify many interlinked pages in batch, so directory design, page format, and update workflow need to be clear from the beginning.
+
+This also changes part of product work. Some work moves from “repeating background in every chat” to **reviewing wiki pages, defining domain boundaries, and deciding what deserves ingest**. The gist says humans are responsible for sourcing, exploration, and asking questions, while the LLM handles summarizing, cross-referencing, and maintenance. I think this division also works in a team setting. But professional product judgment is still necessary, because people still need to decide which information should enter the knowledge base and which information is only a temporary judgment.
+
+If you are building a similar system, the most useful things to reference may not be the exact directory names, but these three points: **separate raw/wiki/schema**, **write workflows clearly in schema**, and **use an entry skill to define the default way of working**. The later tooling, such as GitLab, scheduled lint, and Obsidian, can all be replaced depending on the environment, but this structure helps the agent behave more consistently.
