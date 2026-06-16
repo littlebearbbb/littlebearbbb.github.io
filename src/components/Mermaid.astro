@@ -1,12 +1,13 @@
 ---
 interface Props {
   chart: string;
+  zoom?: number;
 }
 
-const { chart } = Astro.props;
+const { chart, zoom = 1 } = Astro.props;
 ---
 
-<div class="mermaid-wrap">
+<div class="mermaid-wrap" data-zoom={zoom}>
   <div class="mermaid-chart" data-chart={chart} />
 </div>
 
@@ -36,6 +37,33 @@ const { chart } = Astro.props;
     void mermaid.render(diagramId(), chartText).then(
       ({ svg }) => {
         el.innerHTML = svg;
+
+        const wrap = el.closest<HTMLElement>(".mermaid-wrap");
+        const zoom = Number(wrap?.dataset.zoom ?? 1);
+        const svgEl = el.querySelector("svg");
+        if (!svgEl) return;
+
+        const viewBox = svgEl.getAttribute("viewBox");
+        if (!viewBox) return;
+
+        const [, , w, h] = viewBox.split(/\s+/).map(Number);
+        if (!w || !h) return;
+
+        let width = w * zoom;
+        let height = h * zoom;
+
+        if (wrap) {
+          const maxWidth = wrap.clientWidth;
+          if (maxWidth > 0 && width > maxWidth) {
+            const scale = maxWidth / width;
+            width = maxWidth;
+            height = height * scale;
+          }
+        }
+
+        svgEl.setAttribute("width", String(width));
+        svgEl.setAttribute("height", String(height));
+        svgEl.style.removeProperty("max-width");
       },
       (err) => {
         el.innerHTML = `<pre class="mermaid-error">${String(err)}</pre>`;
@@ -48,13 +76,22 @@ const { chart } = Astro.props;
   .mermaid-wrap {
     margin: 1.5rem 0;
     overflow-x: auto;
-    display: flex;
-    justify-content: center;
+    width: 100%;
+  }
+
+  .mermaid-chart {
+    display: block;
+    width: max-content;
+    margin-inline: auto;
+  }
+
+  .mermaid-wrap:not(:has(.mermaid-error)) {
+    display: block;
   }
 
   .mermaid-chart :global(svg) {
-    max-width: 100%;
-    height: auto;
+    display: block;
+    max-width: none;
   }
 
   .mermaid-error {

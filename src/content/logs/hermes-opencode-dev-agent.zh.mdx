@@ -1,0 +1,126 @@
+---
+title: 用 Hermes + OpenCode 搭一套「开发 Agent」工作流
+description: 从产品 Agent 延伸到开发 Agent：Hermes 做协调者，OpenCode + oh-my-openagent 的 ralph-loop 做自动实现，产品知识库与技术知识库双 wiki 隔离，用文件契约串起端到端 Epic 驱动开发流程。
+translationKey: hermes-opencode-dev-agent
+date: 2026-06-15
+locale: zh
+category: coding
+tags:
+  - agent
+  - hermes
+  - opencode
+  - ralph-loop
+  - llm wiki
+  - dev agent
+  - ai engineering
+cover:
+  src: /covers/hermes-openclaw.png
+  alt: Hermes + OpenCode 开发 Agent 工作流的示意头图
+  eyebrow: dev.agent
+draft: false
+---
+
+上一篇写了怎么用 LLM Wiki 搭产品 Agent：知识库怎么组织、入口 skill 怎么设计、怎么和 GitLab 上的需求资产衔接。这篇文章是它自然的延伸——从**产品阶段**进入**开发阶段**。
+
+产品 Agent 的核心是「知识和流程」：模型基于 LLM Wiki 的知识体系和标准流程，产出 PRD、拆分 Epic。但到了开发环节，它就不太够用了。产品 Agent 擅长分析和输出文档，不擅长反复修改代码、跑测试、处理编译错误。开发工作需要的不是一次性产出，而是**能持续校验、迭代、直到完成的循环机制**。
+
+这篇文章记录我怎样用 Hermes 做协调者（coordinator），用 OpenCode + oh-my-openagent 的 ralph-loop 做自动实现者，在两者之间用文件契约沟通，最终串成一套端到端的 Epic 驱动开发流程。
+
+## 为什么不是「一个 Agent 搞定」
+
+简单来说：开发 Agent 和产品 Agent 需要的能力集差别太大，塞进一个 Agent 里两边都做不好。
+
+产品 Agent 的核心动作是**读和写**：读知识库、读需求、写 PRD、写 Wiki。它需要理解业务逻辑、对齐上下文，但不需要频繁操作文件系统或运行编译器。上一篇文章里的产品 Agent 本质上是一个遵循剧本（skill）的导演型 Agent，知识库和方法论是它的主场。
+
+开发 Agent 则完全不同。开发的核心是**修改代码 → 验证 → 再修改 → 再验证**的循环。一个功能实现往往涉及多个文件的修改，还会遇到编译错误、测试失败、lint 报错等问题。模型受限于 token 窗口和一次性输出的质量天花板，单次调用往往输出不够好。你需要的是 harneess——一种能反复执行、自我校验、直到验收通过才停止的机制。
+
+所以我的选择是：**两个 Agent，各司其职**。
+
+Hermes 做协调者，延续上一篇产品 Agent 的能力——读产品知识库、和用户对齐需求、拆任务、写总结。它尽可能不碰代码。
+
+OpenCode 做实现者，用 oh-my-openagent 的 ralph-loop 做开发循环。它只关心代码和测试，不管产品语义。
+
+两者之间不通过正式的 A2A 协议通信，而是通过**文件契约**：Hermes 把任务写成 `.opencode/task_{epic_id}.md`，OpenCode 读完任务自己写 `.opencode/plan_{epic_id}.md`，开发完成后再更新结果。这个模式可以叫 Process Orchestration（进程编排），简单可靠，不需要额外的基础设施。
+
+## 关键设计
+
+### 1. 双 wiki 隔离
+
+产品知识和技术知识是两种截然不同的知识形态，所以我用了两个独立的 wiki，都遵循 LLM Wiki 的三层结构（raw / wiki / schema），但内容完全不互通：
+
+- **产品 Wiki**（Obsidian Vault）：存放产品概念、PRD、用户故事、行业背景。Hermes 在生成 task 前从这里获取业务上下文。
+- **技术 Wiki**（Tech_Wiki）：存放项目架构说明、技术选型理由、模块设计文档、工程约束。OpenCode 在开发前和开发中从这里获取技术上下文，开发完成后也会把新的技术知识沉淀回去。
+
+隔离的好处很明显：Agent 不会在产品语境中搜到代码细节，也不会在技术语境中被产品概念干扰。每次查询的范围更精确，结果也更干净。
+
+### 2. Background + ralph-loop 解决超时问题
+
+OpenCode 用 ralph-loop 实现自动开发时，一个复杂任务的执行时间可能很长——几十分钟甚至更久。Hermes 的 terminal 工具有默认超时（通常 180 秒），直接调用会超时断开。
+
+解决方案是 Hermes 的 **background 模式**（具体用法上一篇文章已经介绍过 Hermes 的一些能力，这里是对 terminal tool 的更深入使用）：
+
+```
+terminal(
+  command="opencode run \
+            --dangerously-skip-permissions \
+            --file .opencode/task_{epic_id}.md \
+            '/ralph-loop \"...\" --max-iterations 30 --completion-promise \"DONE\" --strategy reset'",
+  background=true,
+  pty=true,
+  notify_on_complete=true
+)
+```
+
+关键参数三个：`background=true` 让命令在后台执行，不阻塞 Hermes 当前会话；`notify_on_complete=true` 让进程退出时自动通知 Hermes，不用轮询；`pty=true` 让 OpenCode 在伪终端中运行，支持交互式 CLI 工具。
+
+opencode 侧的 `--strategy reset` 也很重要：它让 ralph-loop 每次迭代都开一个新会话，防止上下文污染。模型不会因为积累了太多历史而变慢或变糊涂。
+
+### 3. Hermes 只管「做什么」，不管「怎么做」
+
+Hermes 侧的核心是 `hermes-coordinator` skill，它的定位是一个**开发流程的指挥者**。它负责：
+
+- 从 GitLab 读取 Epic 详情和 Wiki PRD
+- 从产品 Wiki 获取业务上下文
+- 生成结构化的 task 文件（包含任务目标、验收标准、关键文件路径提示）
+- 调用 GitLab skill 创建 MR、tag 和提测 Issue
+
+它不负责分析代码、不负责写实现、不负责改文件。技术方案分析有两种模式——优先让 OpenCode 的 `/prometheus` 自动扫描项目生成 plan 文件，降级方案是 Hermes 手动读文件后手写 plan——但总之技术决策落在技术侧。
+
+这个 skill 也预留了扩展空间，比如对接 Figma MCP 读取设计图、对接其他设计工具等。
+
+### 4. 文件契约替代 A2A 协议
+
+两个 Agent 不通过 HTTP 或消息队列通信。Hermes 和 OpenCode 之间通过**约定好的文件路径**来交换信息：
+
+| 文件 | 谁写 | 谁读 | 内容 |
+|------|------|------|------|
+| `.opencode/task_{epic_id}.md` | Hermes | OpenCode | 任务目标、验收标准、上下文 |
+| `.opencode/plan_{epic_id}.md` | OpenCode | Hermes | 技术方案、文件变更清单 |
+| `.opencode/test_result_{epic_id}.md` | OpenCode | 评审者 | 自测结果、覆盖率 |
+
+这些文件随代码一起提交到仓库，MR 评审者可以直接看到任务背景和自测情况，不需要翻聊天记录。
+
+## 完整工作流
+
+整个流程从用户指定一个 Epic 编号开始，到创建 MR 结束：
+
+1. **定位 Epic**：从 GitLab 读取 Epic 详情，确认开发项目和分支
+2. **读产品知识库**：在产品 Wiki 中搜索相关上下文
+3. **生成 task**：根据模板生成结构化的任务文件，包含验收标准
+4. **技术方案分析**（双模式）：优先 OpenCode `/prometheus` 自动分析生成 plan；失败时由 Hermes 手动读关键文件后编写
+5. **用户确认方案**：展示 plan，确认后进入开发
+6. **Ralph Loop 自动开发**：Hermes 以 background 模式启动 OpenCode，后者读取 task + plan + 技术 Wiki，进入自校验开发循环——改代码、跑测试、修复、再跑，直到所有验收标准满足
+7. **技术知识沉淀**：开发过程中产生的新技术知识被写入技术 Wiki
+8. **创建 MR & 提测**：Hermes 自动提交代码、创建 MR、打 tag、创建提测 Issue
+
+## 写完之后的感受
+
+写完产品 Agent 再写开发 Agent，最直观的感受是：**分工比集成更重要**。
+
+一开始我也想过要不要在一个 Agent 里把产品和开发都做了——毕竟少一层通信就少一层麻烦。但实际想清楚之后发现，强行合在一起的最大问题是**上下文污染**。产品讨论时不需要知道代码目录结构，开发时也不需要关心用户故事里每一句措辞。分开之后，每个 Agent 的知识库更小、上下文更干净、行为更可预测。
+
+另一个感受是 ralph-loop 这种 harneess 机制的重要性。开发不是写一次就完的，**反复修改 + 自动验证**是唯一靠谱的方式。模型在单次会话中的表现天花板明显，但如果让它在一个可以不断重试的循环里工作，质量会有质的提升。opencode + ralph-loop 的组合把这件事的门槛降到了很低的程度——装一个插件，写一条 slash command，剩下的交给循环。
+
+最后，文件契约这种沟通方式虽然原始，但在两个 Agent 都在同一个文件系统上的场景里足够好用。不需要搭消息队列、不需要注册服务发现、不需要处理网络故障。Hermes 写一个 markdown 文件，OpenCode 读它，做完再写一个回来——简单到不会出错。
+
+如果你也在搭类似的工作流，最值得思考的不是用哪个工具，而是这三件事：**边界划清楚（产品 / 开发）、循环机制够可靠（验证→修复→再验证）、沟通方式够简单（文件就比 API 可靠）**。

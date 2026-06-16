@@ -1,0 +1,126 @@
+---
+title: Building a dev agent workflow on top of Hermes + OpenCode
+description: Extending from product agent to dev agent — using Hermes as the coordinator, OpenCode + oh-my-openagent's ralph-loop as the implementer, dual-wiki isolation between product and tech knowledge, and file contracts to bridge an end-to-end Epic-driven development workflow.
+translationKey: hermes-opencode-dev-agent
+date: 2026-06-15
+locale: en
+category: coding
+tags:
+  - agent
+  - hermes
+  - opencode
+  - ralph-loop
+  - llm wiki
+  - dev agent
+  - ai engineering
+cover:
+  src: /covers/hermes-openclaw.png
+  alt: Cover illustration for Hermes + OpenCode dev agent workflow
+  eyebrow: dev.agent
+draft: false
+---
+
+My previous post covered how to build a product agent on top of LLM Wiki: how the knowledge base is organized, how the entry skill is designed, and how everything connects to GitLab Epics and Issues. This post is a natural continuation — moving from the **product phase** into the **development phase**.
+
+The product agent is centered on knowledge and process: the model follows the LLM Wiki structure and standardized workflows to produce PRDs and break down Epics. But when it comes to actual development, the product agent falls short. It excels at analysis and document output, not at iteratively modifying code, running tests, or dealing with compilation errors. Development isn't about producing something once — it's about a **loop of validation, iteration, and completion**.
+
+This post documents how I used Hermes as the coordinator, OpenCode + oh-my-openagent's ralph-loop as the autonomous implementer, file contracts for communication between them, and ultimately built an end-to-end Epic-driven development workflow.
+
+## Why not "one agent to rule them all"
+
+The short answer: the capability sets required for product and development work are too different to fit well into a single agent.
+
+A product agent is mostly about **reading and writing documents**: reading the knowledge base, reading requirements, writing PRDs, writing wiki pages. It needs to understand business logic and align context, but it doesn't need to frequently touch the filesystem or run compilers. The product agent from the previous post is essentially a director-type agent that follows a playbook (skill) — the knowledge base and methodology are its home turf.
+
+A dev agent is entirely different. The core of development is **edit → verify → re-edit → re-verify**. Implementing a feature often involves modifying multiple files and encountering compilation errors, test failures, lint issues, and more. Models are limited by the token window and the quality ceiling of single-shot outputs. What you need is a **harness** — a mechanism that repeatedly executes, self-validates, and only stops when acceptance criteria are met.
+
+So my approach was: **two agents, each with its own job**.
+
+Hermes acts as the coordinator, continuing from the product agent's strengths — reading the product knowledge base, aligning requirements with the user, breaking down tasks, writing summaries. It stays away from code as much as possible.
+
+OpenCode acts as the implementer, using oh-my-openagent's ralph-loop for the development cycle. It only cares about code and tests, not product semantics.
+
+The two don't communicate through a formal A2A protocol. Instead, they use a **file contract**: Hermes writes the task into `.opencode/task_{epic_id}.md`, OpenCode reads it and writes its own `.opencode/plan_{epic_id}.md`, then updates the results when done. This pattern is essentially **process orchestration** — simple, reliable, requiring no extra infrastructure.
+
+## Key design decisions
+
+### 1. Dual wiki isolation
+
+Product knowledge and technical knowledge are fundamentally different types of knowledge. I use two independent wikis, both following the three-layer LLM Wiki structure (raw / wiki / schema), but their contents never overlap:
+
+- **Product Wiki** (Obsidian Vault): stores product concepts, PRDs, user stories, industry background. Hermes reads from here for business context before generating tasks.
+- **Tech Wiki** (Tech_Wiki): stores project architecture docs, technology rationale, module design documents, engineering constraints. OpenCode reads from here before and during development, and also writes back new technical knowledge after completing a task.
+
+Isolation keeps things clean: the agent won't find code details in a product context, and won't be distracted by product concepts in a technical context. Every query is more focused and the results are cleaner.
+
+### 2. Background + ralph-loop to solve timeout issues
+
+When OpenCode runs a ralph-loop for complex development tasks, execution time can be long — tens of minutes or more. Hermes' terminal tool has a default timeout (typically 180 seconds), so a direct call would time out.
+
+The solution is Hermes' **background mode**:
+
+```
+terminal(
+  command="opencode run \
+            --dangerously-skip-permissions \
+            --file .opencode/task_{epic_id}.md \
+            '/ralph-loop \"...\" --max-iterations 30 --completion-promise \"DONE\" --strategy reset'",
+  background=true,
+  pty=true,
+  notify_on_complete=true
+)
+```
+
+Three key parameters: `background=true` runs the command in the background without blocking the Hermes session; `notify_on_complete=true` auto-notifies Hermes when the process finishes, no polling needed; `pty=true` runs OpenCode in a pseudo-terminal, supporting interactive CLI tools.
+
+On the OpenCode side, `--strategy reset` is important: it makes the ralph-loop start a fresh session for each iteration, preventing context pollution. The model won't slow down or get confused from accumulated history.
+
+### 3. Hermes handles the "what", not the "how"
+
+The core skill on the Hermes side is `hermes-coordinator`, positioned as the **workflow conductor**. It is responsible for:
+
+- Reading Epic details and Wiki PRDs from GitLab
+- Getting business context from the product Wiki
+- Generating structured task files (with goals, acceptance criteria, and key file hints)
+- Calling GitLab skills to create MRs, tags, and test Issues
+
+It does **not** analyze code, write implementations, or modify files. Technical analysis has two modes — the preferred mode lets OpenCode's `/prometheus` automatically scan the project and generate a plan file, with a fallback where Hermes reads key files manually and writes the plan — but in either case, technical decisions stay on the technical side.
+
+The coordinator skill also leaves room for extension, such as integrating with Figma MCP for design assets or connecting to other design tools.
+
+### 4. File contracts instead of A2A protocol
+
+The two agents don't communicate over HTTP or message queues. Instead, they exchange information through **agreed-upon file paths**:
+
+| File | Written by | Read by | Content |
+|------|-----------|---------|---------|
+| `.opencode/task_{epic_id}.md` | Hermes | OpenCode | Task goals, acceptance criteria, context |
+| `.opencode/plan_{epic_id}.md` | OpenCode | Hermes | Technical approach, file change list |
+| `.opencode/test_result_{epic_id}.md` | OpenCode | Reviewer | Self-test results, coverage |
+
+These files are committed together with the code. MR reviewers can directly see the task background and self-test results without digging through chat history.
+
+## The complete workflow
+
+The entire flow starts when a user specifies an Epic number and ends with an MR being created:
+
+1. **Locate the Epic**: read Epic details from GitLab, confirm the development project and branch
+2. **Read the product knowledge base**: search the product Wiki for relevant context
+3. **Generate the task**: create a structured task file from a template, including acceptance criteria
+4. **Technical analysis** (dual mode): preferred — OpenCode `/prometheus` auto-analyzes the project and generates a plan; fallback — Hermes reads key files manually and writes the plan
+5. **User confirms the plan**: show the plan, proceed to development after confirmation
+6. **Ralph Loop auto-development**: Hermes starts OpenCode in background mode; OpenCode reads the task, plan, and tech Wiki, then enters a self-validating development loop — edit code, run tests, fix, re-run — until all acceptance criteria are met
+7. **Tech knowledge capture**: new technical knowledge from development is written back to the tech Wiki
+8. **Create MR & submit for testing**: Hermes automatically commits code, creates an MR, tags a version, and creates a test Issue
+
+## Closing thoughts
+
+Writing a dev agent after the product agent, the biggest takeaway is: **separation of concerns matters more than integration**.
+
+I initially considered putting both product and development into a single agent — one less layer of communication equals one less source of trouble. But the main problem with merging them is **context pollution**. Product discussions don't need to know the code directory structure; development doesn't need to care about every word in a user story. Keeping them separate gives each agent a smaller knowledge base, cleaner context, and more predictable behavior.
+
+Another key insight is how important a harness mechanism like ralph-loop is. Development isn't a one-shot activity — **iterative modification plus automated validation** is the only reliable approach. A model's performance ceiling in a single session is noticeable, but when you let it work inside a retry loop, the quality improves dramatically. The opencode + ralph-loop combination lowers the barrier to entry significantly — install one plugin, write one slash command, and the loop does the rest.
+
+Finally, file contracts as a communication method, while primitive, are plenty good enough when both agents live on the same filesystem. No message queues, no service discovery, no network failures to handle. Hermes writes a markdown file, OpenCode reads it, does its work, and writes back another one — simple enough that nothing can break.
+
+If you are building a similar workflow, the most useful things to think about are not which tools to use, but these three: **draw clear boundaries (product vs. development), make the loop mechanism reliable (validate → fix → re-validate), and keep communication simple (files are more reliable than APIs)**.
